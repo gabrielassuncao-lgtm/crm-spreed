@@ -3,6 +3,7 @@ export const WON_COLOR = '#4ADE9A';
 export const LOST_COLOR = '#F0685E';
 
 export const DEFAULT_STAGES = ['Lead', 'Contato feito', 'Contato realizado', 'Reunião agendada', 'Reunião realizada', 'No show', 'Follow up', 'Ganho'];
+export const RESPONSIBLE_OPTIONS = ['Gabriel', 'Hanna'];
 
 export function fmtMoney(v) {
   const n = parseFloat(v) || 0;

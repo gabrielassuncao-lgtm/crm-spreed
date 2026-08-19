@@ -6,7 +6,7 @@ import {
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
 import {
-  STAGE_PALETTE, WON_COLOR, LOST_COLOR, DEFAULT_STAGES, fmtMoney, toNumericOrNull,
+  STAGE_PALETTE, WON_COLOR, LOST_COLOR, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, fmtMoney, toNumericOrNull,
   primaryBtn, inputPlain, labelStyle, modalTitle, colors, FONT,
 } from './styles';
 
@@ -268,6 +268,7 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
       email: data.email || null,
       origin: data.origin || null,
       responsible: data.responsible || null,
+      notes: data.notes || null,
       value: toNumericOrNull(data.value),
       stage_id: targetStageId,
       funnel_id: funnel.id,
@@ -421,7 +422,7 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
 function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
   const [form, setForm] = useState({
     name: card?.name || '', phone: card?.phone || '', email: card?.email || '',
-    origin: card?.origin || '', responsible: card?.responsible || '', value: card?.value ?? '',
+    origin: card?.origin || '', responsible: card?.responsible || '', notes: card?.notes || '', value: card?.value ?? '',
   });
   const [err, setErr] = useState('');
 
@@ -442,7 +443,12 @@ function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, 
       <label style={labelStyle}>Origem</label>
       <input value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} placeholder="Ex: Indicação, Instagram, Site" style={inputPlain} />
       <label style={labelStyle}>Responsável</label>
-      <input value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} placeholder="Nome do vendedor" style={inputPlain} />
+      <select value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} style={inputPlain}>
+        <option value="">Selecione</option>
+        {RESPONSIBLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+      </select>
+      <label style={labelStyle}>Observações</label>
+      <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre o lead ou a reunião" rows={3} style={{ ...inputPlain, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} />
       <label style={labelStyle}>Etapa</label>
       <select value={targetStageId} onChange={e => setTargetStageId(e.target.value)} style={inputPlain}>
         {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
