@@ -19,10 +19,12 @@ export default function App() {
   const [stages, setStages] = useState([]);
   const [cards, setCards] = useState([]);
   const [origins, setOrigins] = useState([]);
+  const [lossReasons, setLossReasons] = useState([]);
   const [tab, setTab] = useState('funis');
   const [activeFunnelId, setActiveFunnelId] = useState(null);
   const [toast, setToast] = useState(null);
   const [showOriginsModal, setShowOriginsModal] = useState(false);
+  const [showReasonsModal, setShowReasonsModal] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -39,22 +41,25 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'origins' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loss_reasons' }, loadAll)
       .subscribe();
     return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   async function loadAll() {
-    const [{ data: f }, { data: s }, { data: c }, { data: o }] = await Promise.all([
+    const [{ data: f }, { data: s }, { data: c }, { data: o }, { data: lr }] = await Promise.all([
       supabase.from('funnels').select('*').order('created_at'),
       supabase.from('stages').select('*').order('position'),
       supabase.from('cards').select('*').order('created_at', { ascending: false }),
       supabase.from('origins').select('*').order('name'),
+      supabase.from('loss_reasons').select('*').order('name'),
     ]);
     setFunnels(f || []);
     setStages(s || []);
     setCards(c || []);
     setOrigins(o || []);
+    setLossReasons(lr || []);
     setActiveFunnelId(prev => prev || (f && f[0]?.id) || null);
   }
 
@@ -105,6 +110,28 @@ export default function App() {
     if (error) { setOrigins(prev); showToast('Erro ao excluir origem: ' + error.message, 'error'); }
   }
 
+  async function addLossReason(name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (lossReasons.some(r => r.name.toLowerCase() === trimmed.toLowerCase())) { showToast('Esse motivo já existe.', 'error'); return; }
+    const tempId = 'temp-' + Date.now();
+    setLossReasons(prev => [...prev, { id: tempId, name: trimmed }].sort((a, b) => a.name.localeCompare(b.name)));
+    const { data, error } = await supabase.from('loss_reasons').insert({ name: trimmed }).select().single();
+    if (error) {
+      setLossReasons(prev => prev.filter(r => r.id !== tempId));
+      showToast('Erro ao criar motivo: ' + error.message, 'error');
+      return;
+    }
+    setLossReasons(prev => prev.map(r => (r.id === tempId ? data : r)));
+  }
+
+  async function deleteLossReason(id) {
+    const prev = lossReasons;
+    setLossReasons(r => r.filter(x => x.id !== id));
+    const { error } = await supabase.from('loss_reasons').delete().eq('id', id);
+    if (error) { setLossReasons(prev); showToast('Erro ao excluir motivo: ' + error.message, 'error'); }
+  }
+
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
 
@@ -115,10 +142,11 @@ export default function App() {
   const activeFunnel = funnelsWithStages.find(f => f.id === activeFunnelId) || null;
 
   const originNames = origins.map(o => o.name).sort((a, b) => a.localeCompare(b));
+  const reasonNames = lossReasons.map(r => r.name).sort((a, b) => a.localeCompare(b));
 
   return (
     <Shell>
-      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} />
+      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} />
       {toast && <Toast toast={toast} />}
       <div style={{ padding: '18px 22px 36px' }}>
         {tab === 'funis' && (
@@ -127,6 +155,8 @@ export default function App() {
             cards={cards}
             origins={originNames}
             onAddOrigin={addOrigin}
+            reasons={reasonNames}
+            onAddReason={addLossReason}
             activeFunnelId={activeFunnelId}
             setActiveFunnelId={setActiveFunnelId}
             showToast={showToast}
@@ -139,7 +169,10 @@ export default function App() {
         {tab === 'relatorios' && <RelatoriosTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
       </div>
       {showOriginsModal && (
-        <OriginsModal origins={origins} onAdd={addOrigin} onDelete={deleteOrigin} onClose={() => setShowOriginsModal(false)} />
+        <ReasonsModal title="Origens" hint="Crie e remova origens. Elas continuam existindo mesmo sem nenhum lead associado." items={origins} onAdd={addOrigin} onDelete={deleteOrigin} onClose={() => setShowOriginsModal(false)} placeholder="Nova origem (ex: Instagram)" />
+      )}
+      {showReasonsModal && (
+        <ReasonsModal title="Motivos de perda" hint="Crie e remova motivos usados ao marcar um lead como perdido." items={lossReasons} onAdd={addLossReason} onDelete={deleteLossReason} onClose={() => setShowReasonsModal(false)} />
       )}
     </Shell>
   );
@@ -174,7 +207,7 @@ function Toast({ toast }) {
 }
 
 /* ---------- TOP BAR ---------- */
-function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins }) {
+function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, onManageReasons }) {
   const { theme } = useTheme();
   const tabs = [
     { id: 'funis', label: 'Funis', icon: GitBranch },
@@ -198,6 +231,12 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins })
             display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
           }}>
             <Settings2 size={13} /> Origens
+          </button>
+          <button onClick={onManageReasons} title="Gerenciar motivos de perda" style={{
+            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
+            display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
+          }}>
+            <Settings2 size={13} /> Motivos
           </button>
           <button onClick={toggle} title="Mudar tema" style={{
             background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
@@ -233,7 +272,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins })
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, origins, onAddOrigin, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
+function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -294,7 +333,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, activeFunnelId, setAct
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -315,7 +354,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, activeFunnelId, setAct
   );
 }
 
-function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
+function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
@@ -326,6 +365,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteF
   const [dragOverStageId, setDragOverStageId] = useState(null);
   const [draggingStageId, setDraggingStageId] = useState(null);
   const [confirmDeleteFunnel, setConfirmDeleteFunnel] = useState(false);
+  const [showLostPrompt, setShowLostPrompt] = useState(false);
 
   const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
 
@@ -400,11 +440,12 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteF
     showToast('Salvo.');
   }
 
-  async function markLost(cardId) {
-    const { error } = await supabase.from('cards').update({ status: 'lost' }).eq('id', cardId);
+  async function markLost(cardId, reason) {
+    const { error } = await supabase.from('cards').update({ status: 'lost', loss_reason: reason || null }).eq('id', cardId);
     if (error) { showToast('Erro: ' + error.message, 'error'); return; }
     await reload();
     setShowCardModal(false);
+    setShowLostPrompt(false);
     showToast('Card marcado como perdido.');
   }
   async function restoreCard(cardId) {
@@ -549,7 +590,11 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteF
       )}
 
       {showCardModal && (
-        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => markLost(editingCard.id) : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
+        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => { setShowCardModal(false); setShowLostPrompt(true); } : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
+      )}
+
+      {showLostPrompt && editingCard && (
+        <LostReasonModal reasons={reasons} onAdd={onAddReason} onConfirm={reason => markLost(editingCard.id, reason)} onClose={() => setShowLostPrompt(false)} />
       )}
 
       {confirmDeleteFunnel && (
@@ -713,6 +758,7 @@ function LeadsTab({ funnels, cards, origins }) {
   const { theme } = useTheme();
   const [search, setSearch] = useState('');
   const [filterOrigin, setFilterOrigin] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
 
   function stageOf(card) {
@@ -722,16 +768,16 @@ function LeadsTab({ funnels, cards, origins }) {
     return stage ? { name: stage.name, color: stage.color } : { name: '—', color: theme.textMuted };
   }
 
-
   let filtered = cards.filter(c =>
     ((c.name || '') + (c.email || '') + (c.phone || '') + (c.origin || '') + (c.responsible || '')).toLowerCase().includes(search.toLowerCase()) &&
-    (filterOrigin === 'all' || c.origin === filterOrigin)
+    (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterStatus === 'all' || (filterStatus === 'lost' ? c.status === 'lost' : c.status !== 'lost'))
   );
   if (sortBy === 'name') filtered = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   else if (sortBy === 'origin') filtered = [...filtered].sort((a, b) => (a.origin || '').localeCompare(b.origin || ''));
   else filtered = [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const cols = '1.1fr 1.3fr 1.1fr 1.4fr 1fr 1fr';
+  const cols = '1fr 1.2fr 1fr 1.3fr 0.9fr 0.9fr 1.1fr';
   const th = { fontSize: 10.5, fontWeight: 700, color: theme.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', padding: '10px 12px' };
   const td = { fontSize: 12.5, color: theme.textSecondary, padding: '11px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
@@ -743,6 +789,14 @@ function LeadsTab({ funnels, cards, origins }) {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13, width: '100%' }} />
         </div>
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+          <span style={{ fontSize: 12, color: theme.textMuted }}>Status:</span>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+            <option value="all">Todos</option>
+            <option value="active">Ativos</option>
+            <option value="lost">Perdidos</option>
+          </select>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Ordenar:</span>
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
@@ -757,20 +811,21 @@ function LeadsTab({ funnels, cards, origins }) {
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>Nenhum lead encontrado.</div>
       ) : (
         <div style={{ border: `1px solid ${theme.border}`, borderRadius: 11, overflow: 'hidden', overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 720 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 820 }}>
             <div style={th}>Etapa</div>
             <div style={th}>Nome</div>
             <div style={th}>Telefone</div>
             <div style={th}>E-mail</div>
             <div style={th}>Origem</div>
             <div style={th}>Responsável</div>
+            <div style={th}>Motivo</div>
           </div>
           {filtered.map((c, i) => {
             const stage = stageOf(c);
             return (
               <div key={c.id} style={{
                 display: 'grid', gridTemplateColumns: cols, background: i % 2 === 0 ? theme.surface : theme.surfaceAlt + '80',
-                borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${theme.border}`, minWidth: 720,
+                borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${theme.border}`, minWidth: 820,
               }}>
                 <div style={{ ...td }}>
                   <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 8px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
@@ -782,6 +837,7 @@ function LeadsTab({ funnels, cards, origins }) {
                 <div style={td}>{c.email || '—'}</div>
                 <div style={td}>{c.origin || '—'}</div>
                 <div style={td}>{c.responsible || '—'}</div>
+                <div style={{ ...td, color: c.status === 'lost' ? theme.lost : theme.textMuted }}>{c.status === 'lost' ? (c.loss_reason || 'Não especificado') : '—'}</div>
               </div>
             );
           })}
@@ -902,10 +958,66 @@ function Modal({ children, onClose }) {
 }
 
 /* ---------- GERENCIAR ORIGENS ---------- */
-function OriginsModal({ origins, onAdd, onDelete, onClose }) {
+function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
+  const { theme } = useTheme();
+  const [reason, setReason] = useState('');
+  const [addingNew, setAddingNew] = useState(false);
+  const [newReason, setNewReason] = useState('');
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
+  const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, fontWeight: 500 };
+
+  function confirmNewReason() {
+    const trimmed = newReason.trim();
+    if (!trimmed) { setAddingNew(false); return; }
+    onAdd(trimmed);
+    setReason(trimmed);
+    setNewReason('');
+    setAddingNew(false);
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 16px', color: theme.textPrimary }}>Marcar como perdido</h2>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <label style={labelStyle}>Motivo</label>
+        {!addingNew && (
+          <span onClick={() => setAddingNew(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+            + novo motivo
+          </span>
+        )}
+      </div>
+      {addingNew ? (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          <input
+            autoFocus
+            value={newReason}
+            onChange={e => setNewReason(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && confirmNewReason()}
+            placeholder="Nome do novo motivo"
+            style={inputPlain}
+          />
+          <button onClick={confirmNewReason} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+        </div>
+      ) : (
+        <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inputPlain, marginBottom: 16 }}>
+          <option value="">Sem motivo especificado</option>
+          {reasons.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onClose} style={{ flex: 1, background: theme.surfaceAlt, color: theme.textPrimary, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
+        <button onClick={() => onConfirm(reason)} style={{ flex: 1, background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Confirmar perda</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ReasonsModal({ title, hint, items, onAdd, onDelete, onClose, placeholder = 'Novo item' }) {
   const { theme } = useTheme();
   const [name, setName] = useState('');
-  const sorted = [...origins].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
 
   function submit() {
     if (!name.trim()) return;
@@ -915,15 +1027,15 @@ function OriginsModal({ origins, onAdd, onDelete, onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>Origens</h2>
-      <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>Crie e remova origens. Elas continuam existindo mesmo sem nenhum lead associado.</p>
+      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>{title}</h2>
+      <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>{hint}</p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
-          placeholder="Nova origem (ex: Instagram)"
+          placeholder={placeholder}
           style={{ flex: 1, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 }}
         />
         <button onClick={submit} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -932,7 +1044,7 @@ function OriginsModal({ origins, onAdd, onDelete, onClose }) {
       </div>
 
       {sorted.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: theme.textMuted }}>Nenhuma origem cadastrada ainda.</div>
+        <div style={{ fontSize: 12.5, color: theme.textMuted }}>Nada cadastrado ainda.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
           {sorted.map(o => (
