@@ -361,6 +361,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   const [targetStageId, setTargetStageId] = useState(funnel.stages[0]?.id);
   const [filterOrigin, setFilterOrigin] = useState('all');
   const [filterResponsible, setFilterResponsible] = useState('all');
+  const [search, setSearch] = useState('');
   const [dragCardId, setDragCardId] = useState(null);
   const [dragOverStageId, setDragOverStageId] = useState(null);
   const [draggingStageId, setDraggingStageId] = useState(null);
@@ -377,7 +378,8 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
 
   const visibleCards = activeCards.filter(c =>
     (filterOrigin === 'all' || c.origin === filterOrigin) &&
-    (filterResponsible === 'all' || c.responsible === filterResponsible)
+    (filterResponsible === 'all' || c.responsible === filterResponsible) &&
+    ((c.name || '') + (c.email || '') + (c.phone || '')).toLowerCase().includes(search.toLowerCase())
   );
 
   const wonStage = funnel.stages[funnel.stages.length - 1];
@@ -486,6 +488,10 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px', maxWidth: 240, flex: '1 1 180px' }}>
+          <Filter size={12} color={theme.textMuted} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar lead" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 12.5, width: '100%' }} />
+        </div>
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibles} placeholder="Todos os responsáveis" />
       </div>
