@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
-  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet
+  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
@@ -18,9 +18,11 @@ export default function App() {
   const [funnels, setFunnels] = useState([]);
   const [stages, setStages] = useState([]);
   const [cards, setCards] = useState([]);
+  const [origins, setOrigins] = useState([]);
   const [tab, setTab] = useState('funis');
   const [activeFunnelId, setActiveFunnelId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [showOriginsModal, setShowOriginsModal] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -36,20 +38,23 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'funnels' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'origins' }, loadAll)
       .subscribe();
     return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   async function loadAll() {
-    const [{ data: f }, { data: s }, { data: c }] = await Promise.all([
+    const [{ data: f }, { data: s }, { data: c }, { data: o }] = await Promise.all([
       supabase.from('funnels').select('*').order('created_at'),
       supabase.from('stages').select('*').order('position'),
       supabase.from('cards').select('*').order('created_at', { ascending: false }),
+      supabase.from('origins').select('*').order('name'),
     ]);
     setFunnels(f || []);
     setStages(s || []);
     setCards(c || []);
+    setOrigins(o || []);
     setActiveFunnelId(prev => prev || (f && f[0]?.id) || null);
   }
 
@@ -78,6 +83,28 @@ export default function App() {
     });
   }
 
+  async function addOrigin(name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (origins.some(o => o.name.toLowerCase() === trimmed.toLowerCase())) { showToast('Essa origem já existe.', 'error'); return; }
+    const tempId = 'temp-' + Date.now();
+    setOrigins(prev => [...prev, { id: tempId, name: trimmed }].sort((a, b) => a.name.localeCompare(b.name)));
+    const { data, error } = await supabase.from('origins').insert({ name: trimmed }).select().single();
+    if (error) {
+      setOrigins(prev => prev.filter(o => o.id !== tempId));
+      showToast('Erro ao criar origem: ' + error.message, 'error');
+      return;
+    }
+    setOrigins(prev => prev.map(o => (o.id === tempId ? data : o)));
+  }
+
+  async function deleteOrigin(id) {
+    const prev = origins;
+    setOrigins(o => o.filter(x => x.id !== id));
+    const { error } = await supabase.from('origins').delete().eq('id', id);
+    if (error) { setOrigins(prev); showToast('Erro ao excluir origem: ' + error.message, 'error'); }
+  }
+
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
 
@@ -87,15 +114,18 @@ export default function App() {
   }));
   const activeFunnel = funnelsWithStages.find(f => f.id === activeFunnelId) || null;
 
+  const originNames = origins.map(o => o.name).sort((a, b) => a.localeCompare(b));
+
   return (
     <Shell>
-      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} />
+      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} />
       {toast && <Toast toast={toast} />}
       <div style={{ padding: '18px 22px 36px' }}>
         {tab === 'funis' && (
           <FunisTab
             funnels={funnelsWithStages}
             cards={cards}
+            origins={originNames}
             activeFunnelId={activeFunnelId}
             setActiveFunnelId={setActiveFunnelId}
             showToast={showToast}
@@ -104,9 +134,12 @@ export default function App() {
             reorderStages={reorderStages}
           />
         )}
-        {tab === 'leads' && <LeadsTab funnels={funnelsWithStages} cards={cards} />}
-        {tab === 'relatorios' && <RelatoriosTab funnels={funnelsWithStages} cards={cards} />}
+        {tab === 'leads' && <LeadsTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
+        {tab === 'relatorios' && <RelatoriosTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
       </div>
+      {showOriginsModal && (
+        <OriginsModal origins={origins} onAdd={addOrigin} onDelete={deleteOrigin} onClose={() => setShowOriginsModal(false)} />
+      )}
     </Shell>
   );
 }
@@ -140,7 +173,7 @@ function Toast({ toast }) {
 }
 
 /* ---------- TOP BAR ---------- */
-function TopBar({ email, onLogout, tab, setTab, mode, toggle }) {
+function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins }) {
   const { theme } = useTheme();
   const tabs = [
     { id: 'funis', label: 'Funis', icon: GitBranch },
@@ -159,6 +192,12 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle }) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={onManageOrigins} title="Gerenciar origens" style={{
+            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
+            display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
+          }}>
+            <Settings2 size={13} /> Origens
+          </button>
           <button onClick={toggle} title="Mudar tema" style={{
             background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textSecondary, cursor: 'pointer',
@@ -193,7 +232,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle }) {
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
+function FunisTab({ funnels, cards, origins, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -254,7 +293,7 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -275,7 +314,7 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
   );
 }
 
-function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
+function FunnelBoard({ funnel, allCards, origins, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
@@ -293,7 +332,6 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast, upda
   const activeCards = funnelCards.filter(c => c.status !== 'lost');
   const lostCards = funnelCards.filter(c => c.status === 'lost');
 
-  const origins = [...new Set(funnelCards.map(c => c.origin).filter(Boolean))];
   const responsibles = [...new Set(funnelCards.map(c => c.responsible).filter(Boolean))];
 
   const visibleCards = activeCards.filter(c =>
@@ -492,7 +530,7 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast, upda
       )}
 
       {showCardModal && (
-        <CardModal card={editingCard} stages={funnel.stages} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => markLost(editingCard.id) : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
+        <CardModal card={editingCard} stages={funnel.stages} origins={origins} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => markLost(editingCard.id) : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
       )}
 
       {confirmDeleteFunnel && (
@@ -522,7 +560,7 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
   );
 }
 
-function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
+function CardModal({ card, stages, origins, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
   const { theme } = useTheme();
   const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
@@ -551,7 +589,10 @@ function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, 
       <label style={labelStyle}>E-mail</label>
       <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputPlain} />
       <label style={labelStyle}>Origem</label>
-      <input value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} placeholder="Ex: Indicação, Instagram, Site" style={inputPlain} />
+      <select value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} style={inputPlain}>
+        <option value="">Selecione</option>
+        {origins.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
       <label style={labelStyle}>Responsável</label>
       <select value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} style={inputPlain}>
         <option value="">Selecione</option>
@@ -595,9 +636,11 @@ function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, 
 }
 
 /* ---------- LEADS TAB ---------- */
-function LeadsTab({ funnels, cards }) {
+function LeadsTab({ funnels, cards, origins }) {
   const { theme } = useTheme();
   const [search, setSearch] = useState('');
+  const [filterOrigin, setFilterOrigin] = useState('all');
+  const [sortBy, setSortBy] = useState('recent');
 
   function stageOf(card) {
     if (card.status === 'lost') return { name: 'Perdido', color: theme.lost };
@@ -606,38 +649,66 @@ function LeadsTab({ funnels, cards }) {
     return stage ? { name: stage.name, color: stage.color } : { name: '—', color: theme.textMuted };
   }
 
-  const filtered = cards.filter(c => ((c.name || '') + (c.email || '') + (c.phone || '') + (c.origin || '') + (c.responsible || '')).toLowerCase().includes(search.toLowerCase()));
+
+  let filtered = cards.filter(c =>
+    ((c.name || '') + (c.email || '') + (c.phone || '') + (c.origin || '') + (c.responsible || '')).toLowerCase().includes(search.toLowerCase()) &&
+    (filterOrigin === 'all' || c.origin === filterOrigin)
+  );
+  if (sortBy === 'name') filtered = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  else if (sortBy === 'origin') filtered = [...filtered].sort((a, b) => (a.origin || '').localeCompare(b.origin || ''));
+  else filtered = [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const cols = '1.1fr 1.3fr 1.1fr 1.4fr 1fr 1fr';
+  const th = { fontSize: 10.5, fontWeight: 700, color: theme.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', padding: '10px 12px' };
+  const td = { fontSize: 12.5, color: theme.textSecondary, padding: '11px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 12px', marginBottom: 18, maxWidth: 320 }}>
-        <Filter size={13} color={theme.textMuted} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13.5, width: '100%' }} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 12px', maxWidth: 260, flex: '1 1 200px' }}>
+          <Filter size={13} color={theme.textMuted} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13, width: '100%' }} />
+        </div>
+        <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+          <span style={{ fontSize: 12, color: theme.textMuted }}>Ordenar:</span>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+            <option value="recent">Mais recentes</option>
+            <option value="name">Nome (A-Z)</option>
+            <option value="origin">Origem (A-Z)</option>
+          </select>
+        </div>
       </div>
+
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>Nenhum lead cadastrado ainda.</div>
+        <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>Nenhum lead encontrado.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {filtered.map(c => {
+        <div style={{ border: `1px solid ${theme.border}`, borderRadius: 11, overflow: 'hidden', overflowX: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 720 }}>
+            <div style={th}>Etapa</div>
+            <div style={th}>Nome</div>
+            <div style={th}>Telefone</div>
+            <div style={th}>E-mail</div>
+            <div style={th}>Origem</div>
+            <div style={th}>Responsável</div>
+          </div>
+          {filtered.map((c, i) => {
             const stage = stageOf(c);
-            const funnel = funnels.find(f => f.id === c.funnel_id);
             return (
-              <div key={c.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '12px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 200 }}>
-                  <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 9px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
+              <div key={c.id} style={{
+                display: 'grid', gridTemplateColumns: cols, background: i % 2 === 0 ? theme.surface : theme.surfaceAlt + '80',
+                borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${theme.border}`, minWidth: 720,
+              }}>
+                <div style={{ ...td }}>
+                  <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 8px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
                     {stage.name}
                   </span>
-                  <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: theme.textPrimary }}>{c.name}</div>
-                    <div style={{ fontSize: 11, color: theme.textMuted }}>{funnel?.name}</div>
-                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 15, fontSize: 12, color: theme.textSecondary, flexWrap: 'wrap' }}>
-                  {c.phone && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} />{c.phone}</span>}
-                  {c.email && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={11} />{c.email}</span>}
-                  {c.origin && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Tag size={11} />{c.origin}</span>}
-                  {c.responsible && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserCircle2 size={11} />{c.responsible}</span>}
-                </div>
+                <div style={{ ...td, fontWeight: 600, color: theme.textPrimary }}>{c.name}</div>
+                <div style={td}>{c.phone || '—'}</div>
+                <div style={td}>{c.email || '—'}</div>
+                <div style={td}>{c.origin || '—'}</div>
+                <div style={td}>{c.responsible || '—'}</div>
               </div>
             );
           })}
@@ -648,8 +719,17 @@ function LeadsTab({ funnels, cards }) {
 }
 
 /* ---------- RELATORIOS TAB ---------- */
-function RelatoriosTab({ funnels, cards }) {
+function RelatoriosTab({ funnels, cards: allCards, origins }) {
   const { theme } = useTheme();
+  const [filterResponsible, setFilterResponsible] = useState('all');
+  const [filterOrigin, setFilterOrigin] = useState('all');
+
+
+  const cards = allCards.filter(c =>
+    (filterResponsible === 'all' || c.responsible === filterResponsible) &&
+    (filterOrigin === 'all' || c.origin === filterOrigin)
+  );
+
   const total = cards.length;
   const won = cards.filter(c => {
     const f = funnels.find(fn => fn.id === c.funnel_id);
@@ -682,6 +762,10 @@ function RelatoriosTab({ funnels, cards }) {
 
   return (
     <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={RESPONSIBLE_OPTIONS} placeholder="Todos os responsáveis" />
+        <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 26 }}>
         <StatCard icon={<Users size={15} />} label="Total de leads" value={total} />
         <StatCard icon={<TrendingUp size={15} />} label="Conversão total" value={conversionTotal + '%'} />
@@ -741,5 +825,53 @@ function Modal({ children, onClose }) {
         {children}
       </div>
     </div>
+  );
+}
+
+/* ---------- GERENCIAR ORIGENS ---------- */
+function OriginsModal({ origins, onAdd, onDelete, onClose }) {
+  const { theme } = useTheme();
+  const [name, setName] = useState('');
+  const sorted = [...origins].sort((a, b) => a.name.localeCompare(b.name));
+
+  function submit() {
+    if (!name.trim()) return;
+    onAdd(name);
+    setName('');
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>Origens</h2>
+      <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>Crie e remova origens. Elas continuam existindo mesmo sem nenhum lead associado.</p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+          placeholder="Nova origem (ex: Instagram)"
+          style={{ flex: 1, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 }}
+        />
+        <button onClick={submit} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          Adicionar
+        </button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: theme.textMuted }}>Nenhuma origem cadastrada ainda.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+          {sorted.map(o => (
+            <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '8px 11px' }}>
+              <span style={{ fontSize: 13, color: theme.textPrimary }}>{o.name}</span>
+              <button onClick={() => onDelete(o.id)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }
