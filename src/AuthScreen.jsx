@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { GitBranch, User as UserIcon, Lock, AlertCircle } from 'lucide-react';
+import { User as UserIcon, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
-import { inputStyle, primaryBtn, colors, FONT } from './styles';
+import { FONT, FONT_LOGO } from './styles';
+import { useTheme } from './theme.jsx';
 
 export default function AuthScreen() {
+  const { theme } = useTheme();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,47 +42,52 @@ export default function AuthScreen() {
     return msg;
   }
 
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`,
+    borderRadius: 10, padding: '11px 12px 11px 34px', color: theme.textPrimary, fontSize: 14, outline: 'none',
+  };
+  const primaryBtn = {
+    background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9,
+    padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+  };
+
   return (
     <div style={{ minHeight: 440, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
       <div style={{ width: '100%', maxWidth: 300 }}>
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 11, background: colors.surfaceAlt, border: `1px solid ${colors.border}`,
-            margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <GitBranch size={19} color={colors.accent} strokeWidth={1.8} />
-          </div>
-          <h1 style={{ fontSize: 17, fontWeight: 650, margin: 0, color: colors.text, letterSpacing: -0.2 }}>CRM de vendas</h1>
-          <p style={{ fontSize: 12.5, color: colors.textFaint, margin: '5px 0 0' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: theme.textPrimary, fontFamily: FONT_LOGO, letterSpacing: -0.3 }}>
+            CRM <span style={{ color: theme.accent }}>DOXA</span>
+          </h1>
+          <p style={{ fontSize: 12.5, color: theme.textMuted, margin: '6px 0 0' }}>
             {mode === 'login' ? 'Entre com sua conta' : 'Crie sua conta de acesso'}
           </p>
         </div>
 
         <div style={{ position: 'relative', marginBottom: 10 }}>
-          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }}><UserIcon size={14} /></div>
+          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><UserIcon size={14} /></div>
           <input placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
         </div>
         <div style={{ position: 'relative', marginBottom: 14 }}>
-          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }}><Lock size={14} /></div>
+          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><Lock size={14} /></div>
           <input type="password" placeholder="Senha (mín. 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submit()} style={inputStyle} />
         </div>
 
         {err && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#F0958D', fontSize: 12.5, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.lost, fontSize: 12.5, marginBottom: 12 }}>
             <AlertCircle size={13} /> {err}
           </div>
         )}
-        {info && <div style={{ color: '#9FB4F0', fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>{info}</div>}
+        {info && <div style={{ color: theme.accent, fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>{info}</div>}
 
         <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', opacity: loading ? 0.6 : 1 }}>
           {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
         </button>
 
-        <p style={{ textAlign: 'center', fontSize: 12.5, color: colors.textFaint, marginTop: 18 }}>
+        <p style={{ textAlign: 'center', fontSize: 12.5, color: theme.textMuted, marginTop: 18 }}>
           {mode === 'login' ? 'Ainda não tem conta? ' : 'Já tem conta? '}
           <span onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErr(''); setInfo(''); }}
-            style={{ color: colors.accent, cursor: 'pointer', fontWeight: 600 }}>
+            style={{ color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
             {mode === 'login' ? 'Criar agora' : 'Entrar'}
           </span>
         </p>

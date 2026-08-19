@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
-  Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle
+  Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
+  ChevronUp, ChevronDown, Sun, Moon, CreditCard, CalendarClock, Wallet
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
+import { useTheme } from './theme.jsx';
 import {
-  STAGE_PALETTE, WON_COLOR, LOST_COLOR, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, fmtMoney, toNumericOrNull,
-  primaryBtn, inputPlain, labelStyle, modalTitle, colors, FONT,
+  STAGE_PALETTE, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, PLAN_OPTIONS, DURATION_OPTIONS,
+  fmtMoney, toNumericOrNull, normalize, FONT, FONT_LOGO,
 } from './styles';
 
 export default function App() {
-  const [session, setSession] = useState(undefined); // undefined = carregando, null = deslogado
+  const { theme, mode, toggle } = useTheme();
+  const [session, setSession] = useState(undefined);
   const [funnels, setFunnels] = useState([]);
   const [stages, setStages] = useState([]);
   const [cards, setCards] = useState([]);
   const [tab, setTab] = useState('funis');
   const [activeFunnelId, setActiveFunnelId] = useState(null);
-  const [toast, setToast] = useState(null); // { msg, type }
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -28,14 +31,12 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     loadAll();
-
     const channel = supabase
       .channel('crm-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'funnels' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, loadAll)
       .subscribe();
-
     return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
@@ -62,13 +63,13 @@ export default function App() {
 
   const funnelsWithStages = funnels.map(f => ({
     ...f,
-    stages: stages.filter(s => s.funnel_id === f.id),
+    stages: stages.filter(s => s.funnel_id === f.id).sort((a, b) => a.position - b.position),
   }));
   const activeFunnel = funnelsWithStages.find(f => f.id === activeFunnelId) || null;
 
   return (
     <Shell>
-      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} />
+      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} />
       {toast && <Toast toast={toast} />}
       <div style={{ padding: '18px 22px 36px' }}>
         {tab === 'funis' && (
@@ -89,22 +90,25 @@ export default function App() {
 }
 
 function Shell({ children }) {
+  const { theme } = useTheme();
   return (
-    <div style={{ fontFamily: FONT, background: colors.bg, color: colors.text, minHeight: '100vh' }}>
+    <div style={{ fontFamily: FONT, background: theme.bg, color: theme.textPrimary, minHeight: '100vh', transition: 'background .2s' }}>
       {children}
     </div>
   );
 }
 function Centered({ children }) {
-  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: colors.textFaint, fontSize: 14 }}>{children}</div>;
+  const { theme } = useTheme();
+  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: theme.textMuted, fontSize: 14 }}>{children}</div>;
 }
 function Toast({ toast }) {
+  const { theme } = useTheme();
   const isErr = toast.type === 'error';
   return (
     <div style={{
       position: 'fixed', top: 18, left: '50%', transform: 'translateX(-50%)',
-      background: colors.surfaceAlt, color: isErr ? '#F0958D' : colors.text, padding: '10px 18px', borderRadius: 10,
-      fontSize: 13, zIndex: 200, border: `1px solid ${isErr ? '#F0685E40' : colors.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+      background: theme.surfaceAlt, color: isErr ? theme.lost : theme.textPrimary, padding: '10px 18px', borderRadius: 10,
+      fontSize: 13, zIndex: 200, border: `1px solid ${isErr ? theme.lost + '55' : theme.border}`, boxShadow: theme.shadow,
       display: 'flex', alignItems: 'center', gap: 8,
     }}>
       {isErr && <AlertCircle size={14} />}
@@ -114,26 +118,35 @@ function Toast({ toast }) {
 }
 
 /* ---------- TOP BAR ---------- */
-function TopBar({ email, onLogout, tab, setTab }) {
+function TopBar({ email, onLogout, tab, setTab, mode, toggle }) {
+  const { theme } = useTheme();
   const tabs = [
     { id: 'funis', label: 'Funis', icon: GitBranch },
     { id: 'leads', label: 'Leads/Clientes', icon: Users },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
   ];
   return (
-    <div style={{ borderBottom: `1px solid ${colors.borderSubtle}`, padding: '16px 22px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 8, background: colors.surfaceAlt, border: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GitBranch size={13} color={colors.accent} strokeWidth={1.8} />
-          </div>
-          <span style={{ fontSize: 14.5, fontWeight: 650, color: colors.text, letterSpacing: -0.1 }}>CRM de vendas</span>
+    <div style={{ borderBottom: `1px solid ${theme.border}`, padding: '18px 22px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+          <span style={{ fontSize: 29, fontWeight: 700, color: theme.textPrimary, fontFamily: FONT_LOGO, letterSpacing: -0.5 }}>
+            CRM <span style={{ color: theme.accent }}>DOXA</span>
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.textMuted, marginLeft: 8, fontFamily: FONT_LOGO }}>
+            — Matriz
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 12, color: colors.textFaint, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <button onClick={toggle} title="Mudar tema" style={{
+            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textSecondary, cursor: 'pointer',
+          }}>
+            {mode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          <span style={{ fontSize: 12, color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 5 }}>
             <UserCircle2 size={14} /> {email}
           </span>
-          <button onClick={onLogout} style={{ background: 'none', border: 'none', color: colors.textFaint, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+          <button onClick={onLogout} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
             <LogOut size={13} /> Sair
           </button>
         </div>
@@ -145,8 +158,8 @@ function TopBar({ email, onLogout, tab, setTab }) {
           return (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer',
-              padding: '9px 13px', fontSize: 13, fontWeight: 550, color: active ? colors.text : colors.textFaint,
-              borderBottom: active ? `2px solid ${colors.accent}` : '2px solid transparent', transition: 'color .15s',
+              padding: '9px 13px', fontSize: 13, fontWeight: 550, color: active ? theme.textPrimary : theme.textMuted,
+              borderBottom: active ? `2px solid ${theme.accent}` : '2px solid transparent', transition: 'color .15s',
             }}>
               <Icon size={13.5} /> {t.label}
             </button>
@@ -159,9 +172,15 @@ function TopBar({ email, onLogout, tab, setTab }) {
 
 /* ---------- FUNIS TAB ---------- */
 function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast, reload }) {
+  const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
   const [newFunnelStages, setNewFunnelStages] = useState(DEFAULT_STAGES.join('\n'));
+
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
+  const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
+  const modalTitle = { fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: theme.textPrimary };
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
 
   const activeFunnel = funnels.find(f => f.id === activeFunnelId);
 
@@ -196,17 +215,17 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
         {funnels.map(f => (
           <button key={f.id} onClick={() => setActiveFunnelId(f.id)} style={{
-            background: f.id === activeFunnelId ? colors.accent : colors.surfaceAlt,
-            color: f.id === activeFunnelId ? '#fff' : colors.textDim,
-            border: `1px solid ${f.id === activeFunnelId ? colors.accent : colors.border}`,
+            background: f.id === activeFunnelId ? theme.accent : theme.surfaceAlt,
+            color: f.id === activeFunnelId ? theme.accentText : theme.textSecondary,
+            border: `1px solid ${f.id === activeFunnelId ? theme.accent : theme.border}`,
             borderRadius: 18, padding: '7px 15px', fontSize: 12.5, fontWeight: 550, cursor: 'pointer',
           }}>
             {f.name}
           </button>
         ))}
         <button onClick={() => setShowNewFunnel(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${colors.border}`,
-          color: colors.textDim, borderRadius: 18, padding: '7px 15px', fontSize: 12.5, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${theme.border}`,
+          color: theme.textSecondary, borderRadius: 18, padding: '7px 15px', fontSize: 12.5, cursor: 'pointer',
         }}>
           <Plus size={13} /> Novo funil
         </button>
@@ -215,7 +234,7 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
       {activeFunnel ? (
         <FunnelBoard funnel={activeFunnel} allCards={cards} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} />
       ) : (
-        <div style={{ textAlign: 'center', padding: '56px 16px', color: colors.textFaint, fontSize: 13.5 }}>
+        <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
         </div>
       )}
@@ -225,7 +244,7 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
           <h2 style={modalTitle}>Novo funil</h2>
           <label style={labelStyle}>Nome do funil</label>
           <input value={newFunnelName} onChange={e => setNewFunnelName(e.target.value)} placeholder="Ex: Funil comercial" style={inputPlain} />
-          <label style={labelStyle}>Etapas (uma por linha, na ordem)</label>
+          <label style={labelStyle}>Etapas (uma por linha, na ordem — dá pra reordenar depois)</label>
           <textarea value={newFunnelStages} onChange={e => setNewFunnelStages(e.target.value)} rows={8} style={{ ...inputPlain, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }} />
           <button onClick={createFunnel} style={{ ...primaryBtn, width: '100%', marginTop: 16 }}>Criar funil</button>
         </Modal>
@@ -235,13 +254,17 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
 }
 
 function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
+  const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [targetStageId, setTargetStageId] = useState(funnel.stages[0]?.id);
   const [filterOrigin, setFilterOrigin] = useState('all');
   const [filterResponsible, setFilterResponsible] = useState('all');
   const [dragCardId, setDragCardId] = useState(null);
+  const [dragOverStageId, setDragOverStageId] = useState(null);
   const [confirmDeleteFunnel, setConfirmDeleteFunnel] = useState(false);
+
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
 
   const funnelCards = allCards.filter(c => c.funnel_id === funnel.id);
   const activeCards = funnelCards.filter(c => c.status !== 'lost');
@@ -261,6 +284,18 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
   function openNewCard(stageId) { setEditingCard(null); setTargetStageId(stageId); setShowCardModal(true); }
   function openEditCard(card) { setEditingCard(card); setTargetStageId(card.stage_id); setShowCardModal(true); }
 
+  async function moveStage(stage, direction) {
+    const sorted = [...funnel.stages].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex(s => s.id === stage.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const other = sorted[swapIdx];
+    const { error: e1 } = await supabase.from('stages').update({ position: other.position }).eq('id', stage.id);
+    const { error: e2 } = await supabase.from('stages').update({ position: stage.position }).eq('id', other.id);
+    if (e1 || e2) { showToast('Erro ao reordenar etapa.', 'error'); return; }
+    await reload();
+  }
+
   async function saveCard(data) {
     const payload = {
       name: data.name.trim(),
@@ -270,6 +305,9 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
       responsible: data.responsible || null,
       notes: data.notes || null,
       value: toNumericOrNull(data.value),
+      plan: data.plan || null,
+      duration: data.duration || null,
+      payment_method: data.payment_method || null,
       stage_id: targetStageId,
       funnel_id: funnel.id,
     };
@@ -306,6 +344,7 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
     showToast('Card excluído.');
   }
   async function onDropStage(stageId) {
+    setDragOverStageId(null);
     if (!dragCardId) return;
     const { error } = await supabase.from('cards').update({ stage_id: stageId, status: 'active' }).eq('id', dragCardId);
     if (error) showToast('Erro ao mover: ' + error.message, 'error');
@@ -315,53 +354,82 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
-          <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibles} placeholder="Todos os responsáveis" />
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => openNewCard(funnel.stages[0]?.id)} style={{ ...primaryBtn, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> Novo lead
-          </button>
-          <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${colors.border}`, color: colors.textFaint, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
-            <Trash2 size={14} />
-          </button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <button onClick={() => openNewCard(funnel.stages[0]?.id)} style={{
+          ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 12.5,
+        }}>
+          <Plus size={14} /> Novo lead
+        </button>
+        <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
+          <Trash2 size={14} />
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+        <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+        <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibles} placeholder="Todos os responsáveis" />
       </div>
 
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
-        {funnel.stages.map(stage => {
+        {funnel.stages.map((stage, idx) => {
           const stageCards = visibleCards.filter(c => c.stage_id === stage.id);
           const isWon = stage.id === wonStage?.id;
+          const isDragOver = dragOverStageId === stage.id;
           return (
-            <div key={stage.id} onDragOver={e => e.preventDefault()} onDrop={() => onDropStage(stage.id)} style={{
-              minWidth: 226, width: 226, flexShrink: 0, background: colors.surface, border: `1px solid ${colors.borderSubtle}`, borderRadius: 12, padding: 11,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, padding: '2px 3px' }}>
+            <div
+              key={stage.id}
+              onDragOver={e => { e.preventDefault(); if (dragOverStageId !== stage.id) setDragOverStageId(stage.id); }}
+              onDragLeave={() => setDragOverStageId(prev => (prev === stage.id ? null : prev))}
+              onDrop={() => onDropStage(stage.id)}
+              style={{
+                minWidth: 226, width: 226, flexShrink: 0, background: theme.surface,
+                border: `1.5px solid ${isDragOver ? theme.accent : theme.border}`, borderRadius: 12, padding: 11,
+                transition: 'border-color .12s, box-shadow .12s', boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, padding: '2px 3px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: colors.textDim, flex: 1, letterSpacing: 0.1 }}>{stage.name}</span>
-                <span style={{ fontSize: 11, color: colors.textFaint }}>{stageCards.length}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, flex: 1, letterSpacing: 0.1 }}>{stage.name}</span>
+                <span style={{ fontSize: 11, color: theme.textMuted, marginRight: 2 }}>{stageCards.length}</span>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <button onClick={() => moveStage(stage, 'up')} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? theme.border : theme.textMuted, padding: 0, lineHeight: 0 }}>
+                    <ChevronUp size={12} />
+                  </button>
+                  <button onClick={() => moveStage(stage, 'down')} disabled={idx === funnel.stages.length - 1} style={{ background: 'none', border: 'none', cursor: idx === funnel.stages.length - 1 ? 'default' : 'pointer', color: idx === funnel.stages.length - 1 ? theme.border : theme.textMuted, padding: 0, lineHeight: 0 }}>
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
               </div>
               {isWon && (
-                <div style={{ fontSize: 12, color: WON_COLOR, fontWeight: 650, marginBottom: 10, padding: '6px 8px', background: WON_COLOR + '14', borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginBottom: 10, padding: '6px 8px', background: theme.wonSoft, borderRadius: 8 }}>
                   Total: {fmtMoney(wonTotal)}
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minHeight: 40 }}>
                 {stageCards.map(card => (
-                  <div key={card.id} draggable onDragStart={() => setDragCardId(card.id)} onClick={() => openEditCard(card)} style={{
-                    background: colors.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: 'grab', border: `1px solid ${colors.border}`,
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 3 }}>{card.name}</div>
-                    {card.origin && <div style={{ fontSize: 11, color: colors.accent, marginBottom: 3 }}>{card.origin}</div>}
-                    <div style={{ fontSize: 11, color: colors.textFaint }}>{card.responsible}</div>
-                    {isWon && card.value != null && <div style={{ fontSize: 12, color: WON_COLOR, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
+                  <div
+                    key={card.id}
+                    draggable
+                    onDragStart={e => { setDragCardId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragEnd={() => { setDragCardId(null); setDragOverStageId(null); }}
+                    onClick={() => openEditCard(card)}
+                    style={{
+                      background: theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: 'grab', border: `1px solid ${theme.border}`,
+                      opacity: dragCardId === card.id ? 0.35 : 1, transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
+                      transition: 'opacity .12s, transform .12s, box-shadow .12s', boxShadow: theme.shadowSm,
+                    }}
+                    onMouseDown={e => { e.currentTarget.style.cursor = 'grabbing'; }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary, marginBottom: 3 }}>{card.name}</div>
+                    {card.origin && <div style={{ fontSize: 11, color: theme.accent, marginBottom: 3 }}>{card.origin}</div>}
+                    <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
+                    {isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
+                    {isWon && card.plan && <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{card.plan} · {card.duration}</div>}
                   </div>
                 ))}
               </div>
               <button onClick={() => openNewCard(stage.id)} style={{
-                width: '100%', marginTop: 9, background: 'none', border: 'none', color: colors.textFaint,
+                width: '100%', marginTop: 9, background: 'none', border: 'none', color: theme.textMuted,
                 padding: '6px', fontSize: 11.5, cursor: 'pointer', textAlign: 'left',
               }}>
                 + adicionar
@@ -373,15 +441,15 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
 
       {lostCards.length > 0 && (
         <div style={{ marginTop: 26 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: colors.textDim, marginBottom: 10, letterSpacing: 0.1 }}>Perdidos ({lostCards.length})</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, marginBottom: 10 }}>Perdidos ({lostCards.length})</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {lostCards.map(card => (
-              <div key={card.id} style={{ background: LOST_COLOR + '10', border: `1px solid ${LOST_COLOR}30`, borderRadius: 9, padding: '9px 11px', minWidth: 180 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#F0958D', marginBottom: 2 }}>{card.name}</div>
-                <div style={{ fontSize: 11, color: colors.textFaint, marginBottom: 7 }}>{card.origin} · {card.responsible}</div>
+              <div key={card.id} style={{ background: theme.lostSoft, border: `1px solid ${theme.lost}30`, borderRadius: 9, padding: '9px 11px', minWidth: 180 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.lost, marginBottom: 2 }}>{card.name}</div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 7 }}>{card.origin} · {card.responsible}</div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => restoreCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: colors.accent, cursor: 'pointer', padding: 0 }}>Restaurar</button>
-                  <button onClick={() => deleteCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: colors.textFaint, cursor: 'pointer', padding: 0 }}>Excluir</button>
+                  <button onClick={() => restoreCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', padding: 0 }}>Restaurar</button>
+                  <button onClick={() => deleteCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 0 }}>Excluir</button>
                 </div>
               </div>
             ))}
@@ -395,11 +463,11 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
 
       {confirmDeleteFunnel && (
         <Modal onClose={() => setConfirmDeleteFunnel(false)}>
-          <h2 style={modalTitle}>Excluir funil "{funnel.name}"?</h2>
-          <p style={{ fontSize: 13, color: colors.textDim, marginBottom: 20, lineHeight: 1.5 }}>Todos os cards desse funil também serão excluídos. Essa ação não pode ser desfeita.</p>
+          <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: theme.textPrimary }}>Excluir funil "{funnel.name}"?</h2>
+          <p style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 20, lineHeight: 1.5 }}>Todos os cards desse funil também serão excluídos. Essa ação não pode ser desfeita.</p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setConfirmDeleteFunnel(false)} style={{ flex: 1, background: colors.surfaceAlt, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={onDeleteFunnel} style={{ flex: 1, background: LOST_COLOR + '20', color: '#F0958D', border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Excluir</button>
+            <button onClick={() => setConfirmDeleteFunnel(false)} style={{ flex: 1, background: theme.surfaceAlt, color: theme.textPrimary, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={onDeleteFunnel} style={{ flex: 1, background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Excluir</button>
           </div>
         </Modal>
       )}
@@ -408,10 +476,11 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
 }
 
 function SelectFilter({ icon, value, onChange, options, placeholder }) {
+  const { theme } = useTheme();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: colors.surfaceAlt, border: `1px solid ${colors.border}`, borderRadius: 9, padding: '6px 11px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
       {icon}
-      <select value={value} onChange={e => onChange(e.target.value)} style={{ background: 'transparent', border: 'none', color: colors.textDim, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
         <option value="all">{placeholder}</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -420,9 +489,16 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
 }
 
 function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
+  const { theme } = useTheme();
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
+  const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
+  const modalTitle = { fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: theme.textPrimary };
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
+
   const [form, setForm] = useState({
     name: card?.name || '', phone: card?.phone || '', email: card?.email || '',
     origin: card?.origin || '', responsible: card?.responsible || '', notes: card?.notes || '', value: card?.value ?? '',
+    plan: card?.plan || '', duration: card?.duration || '', payment_method: card?.payment_method || '',
   });
   const [err, setErr] = useState('');
 
@@ -457,56 +533,72 @@ function CardModal({ card, stages, targetStageId, setTargetStageId, isWonStage, 
         <>
           <label style={labelStyle}>Valor da venda</label>
           <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="0,00" style={inputPlain} />
+
+          <label style={labelStyle}><CreditCard size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Plano</label>
+          <select value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })} style={inputPlain}>
+            <option value="">Selecione</option>
+            {PLAN_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+
+          <label style={labelStyle}><CalendarClock size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Duração</label>
+          <select value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} style={inputPlain}>
+            <option value="">Selecione</option>
+            {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+
+          <label style={labelStyle}><Wallet size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Forma de pagamento</label>
+          <input value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })} placeholder="Ex: Pix, cartão, boleto" style={inputPlain} />
         </>
       )}
-      {err && <div style={{ fontSize: 12.5, color: '#F0958D', marginTop: 10 }}>{err}</div>}
+      {err && <div style={{ fontSize: 12.5, color: theme.lost, marginTop: 10 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
         <button onClick={submit} style={{ ...primaryBtn, flex: 1 }}>Salvar</button>
-        {onMarkLost && <button onClick={onMarkLost} style={{ background: LOST_COLOR + '18', color: '#F0958D', border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
+        {onMarkLost && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
       </div>
-      {onDelete && <button onClick={onDelete} style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: colors.textFaint, fontSize: 12, cursor: 'pointer' }}>Excluir card</button>}
+      {onDelete && <button onClick={onDelete} style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: theme.textMuted, fontSize: 12, cursor: 'pointer' }}>Excluir card</button>}
     </Modal>
   );
 }
 
 /* ---------- LEADS TAB ---------- */
 function LeadsTab({ funnels, cards }) {
+  const { theme } = useTheme();
   const [search, setSearch] = useState('');
 
   function stageOf(card) {
-    if (card.status === 'lost') return { name: 'Perdido', color: LOST_COLOR };
+    if (card.status === 'lost') return { name: 'Perdido', color: theme.lost };
     const funnel = funnels.find(f => f.id === card.funnel_id);
     const stage = funnel?.stages.find(s => s.id === card.stage_id);
-    return stage ? { name: stage.name, color: stage.color } : { name: '—', color: colors.textFaint };
+    return stage ? { name: stage.name, color: stage.color } : { name: '—', color: theme.textMuted };
   }
 
   const filtered = cards.filter(c => ((c.name || '') + (c.email || '') + (c.phone || '') + (c.origin || '') + (c.responsible || '')).toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: colors.surfaceAlt, border: `1px solid ${colors.border}`, borderRadius: 9, padding: '9px 12px', marginBottom: 18, maxWidth: 320 }}>
-        <Filter size={13} color={colors.textFaint} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: colors.text, fontSize: 13.5, width: '100%' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 12px', marginBottom: 18, maxWidth: 320 }}>
+        <Filter size={13} color={theme.textMuted} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13.5, width: '100%' }} />
       </div>
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '56px 16px', color: colors.textFaint, fontSize: 13.5 }}>Nenhum lead cadastrado ainda.</div>
+        <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>Nenhum lead cadastrado ainda.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {filtered.map(c => {
             const stage = stageOf(c);
             const funnel = funnels.find(f => f.id === c.funnel_id);
             return (
-              <div key={c.id} style={{ background: colors.surface, border: `1px solid ${colors.borderSubtle}`, borderRadius: 10, padding: '12px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div key={c.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '12px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 200 }}>
-                  <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 9px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap', letterSpacing: 0.2 }}>
+                  <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 9px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
                     {stage.name}
                   </span>
                   <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: colors.text }}>{c.name}</div>
-                    <div style={{ fontSize: 11, color: colors.textFaint }}>{funnel?.name}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: theme.textPrimary }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: theme.textMuted }}>{funnel?.name}</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 15, fontSize: 12, color: colors.textDim, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 15, fontSize: 12, color: theme.textSecondary, flexWrap: 'wrap' }}>
                   {c.phone && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} />{c.phone}</span>}
                   {c.email && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={11} />{c.email}</span>}
                   {c.origin && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Tag size={11} />{c.origin}</span>}
@@ -523,6 +615,7 @@ function LeadsTab({ funnels, cards }) {
 
 /* ---------- RELATORIOS TAB ---------- */
 function RelatoriosTab({ funnels, cards }) {
+  const { theme } = useTheme();
   const total = cards.length;
   const won = cards.filter(c => {
     const f = funnels.find(fn => fn.id === c.funnel_id);
@@ -531,7 +624,22 @@ function RelatoriosTab({ funnels, cards }) {
   });
   const lost = cards.filter(c => c.status === 'lost');
   const totalValue = won.reduce((sum, c) => sum + (parseFloat(c.value) || 0), 0);
-  const conversion = total > 0 ? ((won.length / total) * 100).toFixed(1) : '0';
+  const conversionTotal = total > 0 ? ((won.length / total) * 100).toFixed(1) : '0';
+
+  // Conversão com base em "reunião realizada": entre quem chegou nessa etapa (ou passou dela, incluindo ganho),
+  // quantos foram ganhos.
+  let meetingReached = 0;
+  let meetingWon = 0;
+  funnels.forEach(f => {
+    const meetingStage = f.stages.find(s => normalize(s.name).includes('reuniao realizada') || (normalize(s.name).includes('reuniao') && normalize(s.name).includes('realizada')));
+    const wonStage = f.stages[f.stages.length - 1];
+    if (!meetingStage || !wonStage) return;
+    const funnelCards = cards.filter(c => c.funnel_id === f.id && c.status !== 'lost');
+    const reached = funnelCards.filter(c => c.stage_id === meetingStage.id || c.stage_id === wonStage.id);
+    meetingReached += reached.length;
+    meetingWon += reached.filter(c => c.stage_id === wonStage.id).length;
+  });
+  const conversionMeeting = meetingReached > 0 ? ((meetingWon / meetingReached) * 100).toFixed(1) : null;
 
   const byOrigin = {};
   cards.forEach(c => { if (c.origin) byOrigin[c.origin] = (byOrigin[c.origin] || 0) + 1; });
@@ -542,9 +650,10 @@ function RelatoriosTab({ funnels, cards }) {
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 26 }}>
         <StatCard icon={<Users size={15} />} label="Total de leads" value={total} />
-        <StatCard icon={<TrendingUp size={15} />} label="Taxa de conversão" value={conversion + '%'} />
-        <StatCard icon={<DollarSign size={15} />} label="Valor ganho" value={fmtMoney(totalValue)} color={WON_COLOR} />
-        <StatCard icon={<X size={15} />} label="Perdidos" value={lost.length} color={LOST_COLOR} />
+        <StatCard icon={<TrendingUp size={15} />} label="Conversão total" value={conversionTotal + '%'} />
+        <StatCard icon={<TrendingUp size={15} />} label="Conversão (reunião realizada)" value={conversionMeeting != null ? conversionMeeting + '%' : '—'} />
+        <StatCard icon={<DollarSign size={15} />} label="Valor ganho" value={fmtMoney(totalValue)} color={theme.won} />
+        <StatCard icon={<X size={15} />} label="Perdidos" value={lost.length} color={theme.lost} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
         <BreakdownCard title="Por origem" data={byOrigin} />
@@ -553,30 +662,32 @@ function RelatoriosTab({ funnels, cards }) {
     </div>
   );
 }
-function StatCard({ icon, label, value, color = colors.accent }) {
+function StatCard({ icon, label, value, color }) {
+  const { theme } = useTheme();
   return (
-    <div style={{ background: colors.surface, border: `1px solid ${colors.borderSubtle}`, borderRadius: 11, padding: '15px' }}>
-      <div style={{ color, marginBottom: 10 }}>{icon}</div>
-      <div style={{ fontSize: 19, fontWeight: 650, color: colors.text, letterSpacing: -0.2 }}>{value}</div>
-      <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>{label}</div>
+    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 11, padding: '15px' }}>
+      <div style={{ color: color || theme.accent, marginBottom: 10 }}>{icon}</div>
+      <div style={{ fontSize: 19, fontWeight: 650, color: theme.textPrimary, letterSpacing: -0.2 }}>{value}</div>
+      <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{label}</div>
     </div>
   );
 }
 function BreakdownCard({ title, data }) {
+  const { theme } = useTheme();
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const max = Math.max(1, ...entries.map(e => e[1]));
   return (
-    <div style={{ background: colors.surface, border: `1px solid ${colors.borderSubtle}`, borderRadius: 11, padding: 17 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: colors.text, marginBottom: 14, letterSpacing: 0.1 }}>{title}</div>
+    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 11, padding: 17 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.textPrimary, marginBottom: 14 }}>{title}</div>
       {entries.length === 0 ? (
-        <div style={{ fontSize: 12, color: colors.textFaint }}>Sem dados ainda.</div>
+        <div style={{ fontSize: 12, color: theme.textMuted }}>Sem dados ainda.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {entries.map(([k, v]) => (
             <div key={k}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: colors.textDim, marginBottom: 4 }}><span>{k}</span><span>{v}</span></div>
-              <div style={{ height: 4, background: colors.surfaceAlt, borderRadius: 3 }}>
-                <div style={{ height: 4, width: `${(v / max) * 100}%`, background: colors.accent, borderRadius: 3 }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}><span>{k}</span><span>{v}</span></div>
+              <div style={{ height: 4, background: theme.surfaceAlt, borderRadius: 3 }}>
+                <div style={{ height: 4, width: `${(v / max) * 100}%`, background: theme.accent, borderRadius: 3 }} />
               </div>
             </div>
           ))}
@@ -588,10 +699,11 @@ function BreakdownCard({ title, data }) {
 
 /* ---------- SHARED MODAL ---------- */
 function Modal({ children, onClose }) {
+  const { theme } = useTheme();
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
-      <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 15, padding: 24, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} style={{ float: 'right', background: 'none', border: 'none', color: colors.textFaint, cursor: 'pointer', marginTop: -4 }}><X size={17} /></button>
+    <div style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
+      <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 15, padding: 24, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} style={{ float: 'right', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', marginTop: -4 }}><X size={17} /></button>
         {children}
       </div>
     </div>
