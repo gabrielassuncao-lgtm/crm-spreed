@@ -370,6 +370,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   const [filterOrigin, setFilterOrigin] = useState('all');
   const [filterResponsible, setFilterResponsible] = useState('all');
   const [search, setSearch] = useState('');
+  const [viewStatus, setViewStatus] = useState('active'); // active | lost | all
   const [dragCardId, setDragCardId] = useState(null);
   const [dragOverStageId, setDragOverStageId] = useState(null);
   const [draggingStageId, setDraggingStageId] = useState(null);
@@ -509,8 +510,17 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
         </div>
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibles} placeholder="Todos os responsáveis" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+          <span style={{ fontSize: 12, color: theme.textMuted }}>Ver:</span>
+          <select value={viewStatus} onChange={e => setViewStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+            <option value="active">Ativos</option>
+            <option value="lost">Perdidos</option>
+            <option value="all">Todos</option>
+          </select>
+        </div>
       </div>
 
+      {viewStatus !== 'lost' && (
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
         {funnel.stages.map((stage, idx) => {
           const stageCards = visibleCards.filter(c => c.stage_id === stage.id);
@@ -593,8 +603,9 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
           );
         })}
       </div>
+      )}
 
-      {lostCards.length > 0 && (
+      {viewStatus !== 'active' && lostCards.length > 0 && (
         <div style={{ marginTop: 26 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, marginBottom: 10 }}>Perdidos ({lostCards.length})</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -602,13 +613,19 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
               <div key={card.id} style={{ background: theme.lostSoft, border: `1px solid ${theme.lost}30`, borderRadius: 9, padding: '9px 11px', minWidth: 180 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.lost, marginBottom: 2 }}>{card.name}</div>
                 <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 7 }}>{card.origin} · {card.responsible}</div>
-                <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <button onClick={() => restoreCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', padding: 0 }}>Restaurar</button>
-                  <button onClick={() => deleteCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 0 }}>Excluir</button>
+                  <ConfirmDeleteLink onConfirm={() => deleteCard(card.id)} />
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {viewStatus !== 'active' && lostCards.length === 0 && (
+        <div style={{ marginTop: 26, textAlign: 'center', padding: '32px 16px', color: theme.textMuted, fontSize: 13 }}>
+          Nenhum card perdido nesse funil.
         </div>
       )}
 
@@ -689,6 +706,7 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
   });
   const [err, setErr] = useState('');
   const [addingOrigin, setAddingOrigin] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [newOrigin, setNewOrigin] = useState('');
 
   function submit() {
@@ -782,7 +800,17 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
         <button onClick={submit} style={{ ...primaryBtn, flex: 1 }}>Salvar</button>
         {onMarkLost && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
       </div>
-      {onDelete && <button onClick={onDelete} style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: theme.textMuted, fontSize: 12, cursor: 'pointer' }}>Excluir card</button>}
+      {onDelete && (
+        confirmDelete ? (
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 12, color: theme.textMuted }}>Excluir esse card?</span>
+            <span onClick={onDelete} style={{ fontSize: 12, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Sim, excluir</span>
+            <span onClick={() => setConfirmDelete(false)} style={{ fontSize: 12, color: theme.accent, cursor: 'pointer' }}>Cancelar</span>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)} style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: theme.textMuted, fontSize: 12, cursor: 'pointer' }}>Excluir card</button>
+        )
+      )}
 
       {card && (
         <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -986,6 +1014,38 @@ function BreakdownCard({ title, data }) {
 }
 
 /* ---------- SHARED MODAL ---------- */
+function ConfirmDeleteButton({ onConfirm, size = 14 }) {
+  const { theme } = useTheme();
+  const [confirming, setConfirming] = useState(false);
+  if (confirming) {
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span onClick={() => { onConfirm(); setConfirming(false); }} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Excluir</span>
+        <span onClick={() => setConfirming(false)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Cancelar</span>
+      </div>
+    );
+  }
+  return (
+    <button onClick={() => setConfirming(true)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
+      <Trash2 size={size} />
+    </button>
+  );
+}
+
+function ConfirmDeleteLink({ onConfirm }) {
+  const { theme } = useTheme();
+  const [confirming, setConfirming] = useState(false);
+  if (confirming) {
+    return (
+      <>
+        <span onClick={() => { onConfirm(); setConfirming(false); }} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Confirmar?</span>
+        <span onClick={() => setConfirming(false)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Não</span>
+      </>
+    );
+  }
+  return <span onClick={() => setConfirming(true)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Excluir</span>;
+}
+
 function Modal({ children, onClose }) {
   const { theme } = useTheme();
   return (
@@ -1043,9 +1103,7 @@ function WonFieldsModal({ fields, onSave, onClose }) {
                   {f.type === 'select' ? 'seleção: ' + (f.options || []).join(', ') : 'texto livre'}
                 </span>
               </div>
-              <button onClick={() => removeField(f.id)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
-                <Trash2 size={14} />
-              </button>
+              <ConfirmDeleteButton onConfirm={() => removeField(f.id)} />
             </div>
           ))}
         </div>
@@ -1165,9 +1223,7 @@ function ReasonsModal({ title, hint, items, onAdd, onDelete, onClose, placeholde
           {sorted.map(o => (
             <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '8px 11px' }}>
               <span style={{ fontSize: 13, color: theme.textPrimary }}>{o.name}</span>
-              <button onClick={() => onDelete(o.id)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
-                <Trash2 size={14} />
-              </button>
+              <ConfirmDeleteButton onConfirm={() => onDelete(o.id)} />
             </div>
           ))}
         </div>
