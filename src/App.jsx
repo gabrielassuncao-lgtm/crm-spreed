@@ -132,6 +132,13 @@ export default function App() {
     if (error) { setLossReasons(prev); showToast('Erro ao excluir motivo: ' + error.message, 'error'); }
   }
 
+  function updateWonFields(funnelId, fields) {
+    setFunnels(prev => prev.map(f => (f.id === funnelId ? { ...f, won_fields: fields } : f)));
+    supabase.from('funnels').update({ won_fields: fields }).eq('id', funnelId).then(({ error }) => {
+      if (error) showToast('Erro ao salvar campos: ' + error.message, 'error');
+    });
+  }
+
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
 
@@ -157,6 +164,7 @@ export default function App() {
             onAddOrigin={addOrigin}
             reasons={reasonNames}
             onAddReason={addLossReason}
+            onUpdateWonFields={updateWonFields}
             activeFunnelId={activeFunnelId}
             setActiveFunnelId={setActiveFunnelId}
             showToast={showToast}
@@ -272,7 +280,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
+function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -333,7 +341,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -354,7 +362,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
   );
 }
 
-function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
+function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
@@ -367,6 +375,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   const [draggingStageId, setDraggingStageId] = useState(null);
   const [confirmDeleteFunnel, setConfirmDeleteFunnel] = useState(false);
   const [showLostPrompt, setShowLostPrompt] = useState(false);
+  const [showFieldsModal, setShowFieldsModal] = useState(false);
 
   const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
 
@@ -425,9 +434,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
       responsible: data.responsible || null,
       notes: data.notes || null,
       value: toNumericOrNull(data.value),
-      plan: data.plan || null,
-      duration: data.duration || null,
-      payment_method: data.payment_method || null,
+      won_data: data.wonData || {},
       stage_id: targetStageId,
       funnel_id: funnel.id,
     };
@@ -485,9 +492,14 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
         }}>
           <Plus size={14} /> Novo lead
         </button>
-        <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
-          <Trash2 size={14} />
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontSize: 12.5 }}>
+            <Settings2 size={13} /> Campos de ganho
+          </button>
+          <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -565,7 +577,9 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                     {card.origin && <div style={{ fontSize: 11, color: theme.accent, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
                     {isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
-                    {isWon && card.plan && <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{card.plan} · {card.duration}</div>}
+                    {isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
+                      <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -599,11 +613,19 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
       )}
 
       {showCardModal && (
-        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => { setShowCardModal(false); setShowLostPrompt(true); } : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
+        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} wonFields={funnel.won_fields} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => { setShowCardModal(false); setShowLostPrompt(true); } : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
       )}
 
       {showLostPrompt && editingCard && (
         <LostReasonModal reasons={reasons} onAdd={onAddReason} onConfirm={reason => markLost(editingCard.id, reason)} onClose={() => setShowLostPrompt(false)} />
+      )}
+
+      {showFieldsModal && (
+        <WonFieldsModal
+          fields={funnel.won_fields || []}
+          onSave={fields => onUpdateWonFields(funnel.id, fields)}
+          onClose={() => setShowFieldsModal(false)}
+        />
       )}
 
       {confirmDeleteFunnel && (
@@ -653,7 +675,7 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
   );
 }
 
-function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
+function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTargetStageId, isWonStage, wonFields, onSave, onClose, onMarkLost, onDelete }) {
   const { theme } = useTheme();
   const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
@@ -663,7 +685,7 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
   const [form, setForm] = useState({
     name: card?.name || '', phone: card?.phone || '', email: card?.email || '',
     origin: card?.origin || '', responsible: card?.responsible || '', notes: card?.notes || '', value: card?.value ?? '',
-    plan: card?.plan || '', duration: card?.duration || '', payment_method: card?.payment_method || '',
+    wonData: card?.won_data || {},
   });
   const [err, setErr] = useState('');
   const [addingOrigin, setAddingOrigin] = useState(false);
@@ -681,6 +703,10 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
     setForm(f => ({ ...f, origin: trimmed }));
     setNewOrigin('');
     setAddingOrigin(false);
+  }
+
+  function setWonField(id, value) {
+    setForm(f => ({ ...f, wonData: { ...f.wonData, [id]: value } }));
   }
 
   return (
@@ -736,20 +762,19 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
           <label style={labelStyle}>Valor da venda</label>
           <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="0,00" style={inputPlain} />
 
-          <label style={labelStyle}><CreditCard size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Plano</label>
-          <select value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })} style={inputPlain}>
-            <option value="">Selecione</option>
-            {PLAN_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-
-          <label style={labelStyle}><CalendarClock size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Duração</label>
-          <select value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} style={inputPlain}>
-            <option value="">Selecione</option>
-            {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-
-          <label style={labelStyle}><Wallet size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Forma de pagamento</label>
-          <input value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })} placeholder="Ex: Pix, cartão, boleto" style={inputPlain} />
+          {(wonFields || []).map(field => (
+            <React.Fragment key={field.id}>
+              <label style={labelStyle}>{field.label}</label>
+              {field.type === 'select' ? (
+                <select value={form.wonData[field.id] || ''} onChange={e => setWonField(field.id, e.target.value)} style={inputPlain}>
+                  <option value="">Selecione</option>
+                  {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input value={form.wonData[field.id] || ''} onChange={e => setWonField(field.id, e.target.value)} style={inputPlain} />
+              )}
+            </React.Fragment>
+          ))}
         </>
       )}
       {err && <div style={{ fontSize: 12.5, color: theme.lost, marginTop: 10 }}>{err}</div>}
@@ -974,6 +999,80 @@ function Modal({ children, onClose }) {
 }
 
 /* ---------- GERENCIAR ORIGENS ---------- */
+function WonFieldsModal({ fields, onSave, onClose }) {
+  const { theme } = useTheme();
+  const [items, setItems] = useState(fields);
+  const [label, setLabel] = useState('');
+  const [type, setType] = useState('text');
+  const [options, setOptions] = useState('');
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 };
+  const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 10, fontWeight: 500 };
+
+  function addField() {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const id = trimmed.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').slice(0, 30) + '_' + Date.now().toString(36).slice(-4);
+    const newField = { id, label: trimmed, type };
+    if (type === 'select') newField.options = options.split(',').map(o => o.trim()).filter(Boolean);
+    const next = [...items, newField];
+    setItems(next);
+    onSave(next);
+    setLabel(''); setOptions(''); setType('text');
+  }
+
+  function removeField(id) {
+    const next = items.filter(f => f.id !== id);
+    setItems(next);
+    onSave(next);
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>Campos de ganho</h2>
+      <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>Escolha quais informações aparecem quando um lead desse funil vira "Ganho". O campo Valor da venda é sempre fixo.</p>
+
+      {items.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: theme.textMuted, marginBottom: 16 }}>Nenhum campo extra ainda.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+          {items.map(f => (
+            <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '8px 11px' }}>
+              <div>
+                <span style={{ fontSize: 13, color: theme.textPrimary }}>{f.label}</span>
+                <span style={{ fontSize: 11, color: theme.textMuted, marginLeft: 8 }}>
+                  {f.type === 'select' ? 'seleção: ' + (f.options || []).join(', ') : 'texto livre'}
+                </span>
+              </div>
+              <button onClick={() => removeField(f.id)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 4 }}>
+        <label style={labelStyle}>Novo campo</label>
+        <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Tipo de licença" style={inputPlain} />
+        <label style={labelStyle}>Tipo</label>
+        <select value={type} onChange={e => setType(e.target.value)} style={inputPlain}>
+          <option value="text">Texto livre</option>
+          <option value="select">Seleção (opções fixas)</option>
+        </select>
+        {type === 'select' && (
+          <>
+            <label style={labelStyle}>Opções (separadas por vírgula)</label>
+            <input value={options} onChange={e => setOptions(e.target.value)} placeholder="Ex: Anual, Mensal" style={inputPlain} />
+          </>
+        )}
+        <button onClick={addField} style={{ marginTop: 12, width: '100%', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+          Adicionar campo
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
   const { theme } = useTheme();
   const [reason, setReason] = useState('');
