@@ -449,11 +449,6 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteF
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibles} placeholder="Todos os responsáveis" />
       </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
-        <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} />
-        <ConversionBar label="Conversão (reunião realizada)" value={conversionMeeting} color={theme.won} theme={theme} />
-      </div>
-
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
         {funnel.stages.map((stage, idx) => {
           const stageCards = visibleCards.filter(c => c.stage_id === stage.id);
@@ -493,8 +488,12 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteF
                 <span style={{ fontSize: 11, color: theme.textMuted }}>{stageCards.length}</span>
               </div>
               {isWon && (
-                <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginBottom: 10, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
-                  Total: {fmtMoney(wonTotal)}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                  <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} compact />
+                  <ConversionBar label="Reunião realizada" value={conversionMeeting} color={theme.won} theme={theme} compact />
+                  <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
+                    Total: {fmtMoney(wonTotal)}
+                  </div>
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minHeight: 40 }}>
@@ -567,17 +566,21 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteF
   );
 }
 
-function ConversionBar({ label, value, color, theme }) {
+function ConversionBar({ label, value, color, theme, compact }) {
   const hasValue = value != null;
   const pct = hasValue ? Math.round(value * 10) / 10 : 0;
   return (
-    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '10px 14px', minWidth: 200, flex: '1 1 220px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: theme.textSecondary, marginBottom: 6 }}>
+    <div style={{
+      background: compact ? 'transparent' : theme.surface, border: compact ? 'none' : `1px solid ${theme.border}`,
+      borderRadius: compact ? 0 : 10, padding: compact ? '0' : '10px 14px',
+      minWidth: compact ? 'auto' : 200, flex: compact ? 'none' : '1 1 220px',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: compact ? 10.5 : 11.5, color: theme.textSecondary, marginBottom: 4 }}>
         <span>{label}</span>
         <span style={{ fontWeight: 700, color: theme.textPrimary }}>{hasValue ? pct + '%' : '—'}</span>
       </div>
-      <div style={{ height: 5, background: theme.surfaceAlt, borderRadius: 3 }}>
-        <div style={{ height: 5, width: `${hasValue ? pct : 0}%`, background: color, borderRadius: 3, transition: 'width .2s' }} />
+      <div style={{ height: compact ? 4 : 5, background: theme.surfaceAlt, borderRadius: 3 }}>
+        <div style={{ height: compact ? 4 : 5, width: `${hasValue ? pct : 0}%`, background: color, borderRadius: 3, transition: 'width .2s' }} />
       </div>
     </div>
   );
