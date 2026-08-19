@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GitBranch, User as UserIcon, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
-import { inputStyle, primaryBtn } from './styles';
+import { inputStyle, primaryBtn, colors, FONT } from './styles';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState('login');
@@ -41,43 +41,46 @@ export default function AuthScreen() {
   }
 
   return (
-    <div style={{ minHeight: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ width: '100%', maxWidth: 320 }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#6366F1', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GitBranch size={22} color="#fff" />
+    <div style={{ minHeight: 440, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
+      <div style={{ width: '100%', maxWidth: 300 }}>
+        <div style={{ textAlign: 'center', marginBottom: 30 }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 11, background: colors.surfaceAlt, border: `1px solid ${colors.border}`,
+            margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <GitBranch size={19} color={colors.accent} strokeWidth={1.8} />
           </div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#F8FAFC' }}>CRM de vendas</h1>
-          <p style={{ fontSize: 12.5, color: '#64748B', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: 17, fontWeight: 650, margin: 0, color: colors.text, letterSpacing: -0.2 }}>CRM de vendas</h1>
+          <p style={{ fontSize: 12.5, color: colors.textFaint, margin: '5px 0 0' }}>
             {mode === 'login' ? 'Entre com sua conta' : 'Crie sua conta de acesso'}
           </p>
         </div>
 
         <div style={{ position: 'relative', marginBottom: 10 }}>
-          <div style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#64748B' }}><UserIcon size={14} /></div>
+          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }}><UserIcon size={14} /></div>
           <input placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
         </div>
-        <div style={{ position: 'relative', marginBottom: 10 }}>
-          <div style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#64748B' }}><Lock size={14} /></div>
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }}><Lock size={14} /></div>
           <input type="password" placeholder="Senha (mín. 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submit()} style={inputStyle} />
         </div>
 
         {err && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#FCA5A5', fontSize: 12.5, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#F0958D', fontSize: 12.5, marginBottom: 12 }}>
             <AlertCircle size={13} /> {err}
           </div>
         )}
-        {info && <div style={{ color: '#93C5FD', fontSize: 12.5, marginBottom: 10 }}>{info}</div>}
+        {info && <div style={{ color: '#9FB4F0', fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>{info}</div>}
 
-        <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', marginTop: 4, opacity: loading ? 0.6 : 1 }}>
+        <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', opacity: loading ? 0.6 : 1 }}>
           {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
         </button>
 
-        <p style={{ textAlign: 'center', fontSize: 12.5, color: '#64748B', marginTop: 16 }}>
+        <p style={{ textAlign: 'center', fontSize: 12.5, color: colors.textFaint, marginTop: 18 }}>
           {mode === 'login' ? 'Ainda não tem conta? ' : 'Já tem conta? '}
           <span onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErr(''); setInfo(''); }}
-            style={{ color: '#818CF8', cursor: 'pointer', fontWeight: 600 }}>
+            style={{ color: colors.accent, cursor: 'pointer', fontWeight: 600 }}>
             {mode === 'login' ? 'Criar agora' : 'Entrar'}
           </span>
         </p>

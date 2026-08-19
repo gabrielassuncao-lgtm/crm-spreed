@@ -1,6 +1,7 @@
-export const STAGE_PALETTE = ['#60A5FA', '#818CF8', '#A78BFA', '#F472B6', '#FB923C', '#FBBF24', '#34D399', '#22D3EE'];
-export const WON_COLOR = '#34D399';
-export const LOST_COLOR = '#F87171';
+export const STAGE_PALETTE = ['#7C93FF', '#9B8CFF', '#C08CFF', '#FF8CC8', '#FFA98C', '#F0CB6E', '#6EDCB0', '#6ED4E8'];
+export const WON_COLOR = '#4ADE9A';
+export const LOST_COLOR = '#F0685E';
+
 export const DEFAULT_STAGES = ['Lead', 'Contato feito', 'Contato realizado', 'Reunião agendada', 'Reunião realizada', 'No show', 'Follow up', 'Ganho'];
 
 export function fmtMoney(v) {
@@ -8,17 +9,39 @@ export function fmtMoney(v) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Converte o valor digitado num número seguro para o banco (nunca string vazia)
+export function toNumericOrNull(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+export const FONT = "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif";
+
+export const colors = {
+  bg: '#0A0A0B',
+  surface: '#141416',
+  surfaceAlt: '#1B1B1E',
+  border: '#26262A',
+  borderSubtle: '#1E1E21',
+  text: '#F2F2F4',
+  textDim: '#A1A1A6',
+  textFaint: '#6E6E73',
+  accent: '#6C6CF2',
+  accentSoft: '#6C6CF230',
+};
+
 export const inputStyle = {
-  width: '100%', boxSizing: 'border-box', background: '#1E293B', border: '1px solid #334155',
-  borderRadius: 8, padding: '10px 10px 10px 32px', color: '#E2E8F0', fontSize: 14, outline: 'none',
+  width: '100%', boxSizing: 'border-box', background: colors.surfaceAlt, border: `1px solid ${colors.border}`,
+  borderRadius: 10, padding: '11px 12px 11px 34px', color: colors.text, fontSize: 14, outline: 'none',
 };
 export const primaryBtn = {
-  background: '#6366F1', color: '#fff', border: 'none', borderRadius: 8,
-  padding: '10px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+  background: colors.accent, color: '#fff', border: 'none', borderRadius: 9,
+  padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', letterSpacing: 0.1,
 };
 export const inputPlain = {
-  width: '100%', boxSizing: 'border-box', background: '#0F172A', border: '1px solid #334155',
-  borderRadius: 8, padding: '9px 10px', color: '#E2E8F0', fontSize: 14,
+  width: '100%', boxSizing: 'border-box', background: colors.surfaceAlt, border: `1px solid ${colors.border}`,
+  borderRadius: 9, padding: '10px 11px', color: colors.text, fontSize: 14,
 };
-export const labelStyle = { fontSize: 12, color: '#94A3B8', display: 'block', marginBottom: 4, marginTop: 10 };
-export const modalTitle = { fontSize: 16, fontWeight: 700, margin: '0 0 16px', color: '#F8FAFC' };
+export const labelStyle = { fontSize: 11.5, color: colors.textDim, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500, letterSpacing: 0.2 };
+export const modalTitle = { fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: colors.text, letterSpacing: -0.1 };
