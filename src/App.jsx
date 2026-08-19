@@ -126,6 +126,7 @@ export default function App() {
             funnels={funnelsWithStages}
             cards={cards}
             origins={originNames}
+            onAddOrigin={addOrigin}
             activeFunnelId={activeFunnelId}
             setActiveFunnelId={setActiveFunnelId}
             showToast={showToast}
@@ -232,7 +233,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins })
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, origins, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
+function FunisTab({ funnels, cards, origins, onAddOrigin, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -293,7 +294,7 @@ function FunisTab({ funnels, cards, origins, activeFunnelId, setActiveFunnelId, 
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -314,7 +315,7 @@ function FunisTab({ funnels, cards, origins, activeFunnelId, setActiveFunnelId, 
   );
 }
 
-function FunnelBoard({ funnel, allCards, origins, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
+function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
@@ -341,6 +342,20 @@ function FunnelBoard({ funnel, allCards, origins, reload, onDeleteFunnel, showTo
 
   const wonStage = funnel.stages[funnel.stages.length - 1];
   const wonTotal = visibleCards.filter(c => c.stage_id === wonStage?.id).reduce((sum, c) => sum + (parseFloat(c.value) || 0), 0);
+
+  // Conversão do funil, já considerando os filtros de origem/responsável ativos acima.
+  const filteredAllStatus = funnelCards.filter(c =>
+    (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterResponsible === 'all' || c.responsible === filterResponsible)
+  );
+  const wonCount = filteredAllStatus.filter(c => c.status !== 'lost' && c.stage_id === wonStage?.id).length;
+  const conversionTotal = filteredAllStatus.length > 0 ? (wonCount / filteredAllStatus.length) * 100 : 0;
+  const meetingStage = funnel.stages.find(s => normalize(s.name).includes('reuniao') && normalize(s.name).includes('realizada'));
+  let conversionMeeting = null;
+  if (meetingStage) {
+    const reached = filteredAllStatus.filter(c => c.status !== 'lost' && (c.stage_id === meetingStage.id || c.stage_id === wonStage?.id));
+    conversionMeeting = reached.length > 0 ? (reached.filter(c => c.stage_id === wonStage?.id).length / reached.length) * 100 : null;
+  }
 
   function openNewCard(stageId) { setEditingCard(null); setTargetStageId(stageId); setShowCardModal(true); }
   function openEditCard(card) { setEditingCard(card); setTargetStageId(card.stage_id); setShowCardModal(true); }
@@ -429,9 +444,14 @@ function FunnelBoard({ funnel, allCards, origins, reload, onDeleteFunnel, showTo
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibles} placeholder="Todos os responsáveis" />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+        <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} />
+        <ConversionBar label="Conversão (reunião realizada)" value={conversionMeeting} color={theme.won} theme={theme} />
       </div>
 
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
@@ -530,7 +550,7 @@ function FunnelBoard({ funnel, allCards, origins, reload, onDeleteFunnel, showTo
       )}
 
       {showCardModal && (
-        <CardModal card={editingCard} stages={funnel.stages} origins={origins} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => markLost(editingCard.id) : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
+        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => markLost(editingCard.id) : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
       )}
 
       {confirmDeleteFunnel && (
@@ -543,6 +563,22 @@ function FunnelBoard({ funnel, allCards, origins, reload, onDeleteFunnel, showTo
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+function ConversionBar({ label, value, color, theme }) {
+  const hasValue = value != null;
+  const pct = hasValue ? Math.round(value * 10) / 10 : 0;
+  return (
+    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '10px 14px', minWidth: 200, flex: '1 1 220px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: theme.textSecondary, marginBottom: 6 }}>
+        <span>{label}</span>
+        <span style={{ fontWeight: 700, color: theme.textPrimary }}>{hasValue ? pct + '%' : '—'}</span>
+      </div>
+      <div style={{ height: 5, background: theme.surfaceAlt, borderRadius: 3 }}>
+        <div style={{ height: 5, width: `${hasValue ? pct : 0}%`, background: color, borderRadius: 3, transition: 'width .2s' }} />
+      </div>
     </div>
   );
 }
@@ -560,7 +596,7 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
   );
 }
 
-function CardModal({ card, stages, origins, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
+function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTargetStageId, isWonStage, onSave, onClose, onMarkLost, onDelete }) {
   const { theme } = useTheme();
   const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
@@ -573,10 +609,21 @@ function CardModal({ card, stages, origins, targetStageId, setTargetStageId, isW
     plan: card?.plan || '', duration: card?.duration || '', payment_method: card?.payment_method || '',
   });
   const [err, setErr] = useState('');
+  const [addingOrigin, setAddingOrigin] = useState(false);
+  const [newOrigin, setNewOrigin] = useState('');
 
   function submit() {
     if (!form.name.trim()) { setErr('Nome é obrigatório.'); return; }
     onSave(form);
+  }
+
+  function confirmNewOrigin() {
+    const trimmed = newOrigin.trim();
+    if (!trimmed) { setAddingOrigin(false); return; }
+    onAddOrigin(trimmed);
+    setForm(f => ({ ...f, origin: trimmed }));
+    setNewOrigin('');
+    setAddingOrigin(false);
   }
 
   return (
@@ -588,11 +635,34 @@ function CardModal({ card, stages, origins, targetStageId, setTargetStageId, isW
       <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputPlain} />
       <label style={labelStyle}>E-mail</label>
       <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputPlain} />
-      <label style={labelStyle}>Origem</label>
-      <select value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} style={inputPlain}>
-        <option value="">Selecione</option>
-        {origins.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <label style={{ ...labelStyle, marginTop: 12 }}>Origem</label>
+        {!addingOrigin && (
+          <span onClick={() => setAddingOrigin(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+            + nova origem
+          </span>
+        )}
+      </div>
+      {addingOrigin ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            autoFocus
+            value={newOrigin}
+            onChange={e => setNewOrigin(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && confirmNewOrigin()}
+            placeholder="Nome da nova origem"
+            style={inputPlain}
+          />
+          <button onClick={confirmNewOrigin} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+        </div>
+      ) : (
+        <select value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} style={inputPlain}>
+          <option value="">Selecione</option>
+          {origins.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )}
+
       <label style={labelStyle}>Responsável</label>
       <select value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} style={inputPlain}>
         <option value="">Selecione</option>
