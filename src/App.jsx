@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
-  ChevronUp, ChevronDown, Sun, Moon, CreditCard, CalendarClock, Wallet
+  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
@@ -58,6 +58,26 @@ export default function App() {
     setTimeout(() => setToast(null), 3200);
   }
 
+  // Atualiza o card na tela na hora (sem esperar o banco), evitando o "piscar".
+  function updateCardLocal(id, patch) {
+    setCards(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
+  }
+
+  // Reordena as etapas de um funil na tela na hora, e salva a nova ordem em segundo plano.
+  function reorderStages(funnelId, orderedIds) {
+    setStages(prev => {
+      const others = prev.filter(s => s.funnel_id !== funnelId);
+      const byId = Object.fromEntries(prev.filter(s => s.funnel_id === funnelId).map(s => [s.id, s]));
+      const updated = orderedIds.map((id, i) => ({ ...byId[id], position: i }));
+      return [...others, ...updated];
+    });
+    orderedIds.forEach((id, i) => {
+      supabase.from('stages').update({ position: i }).eq('id', id).then(({ error }) => {
+        if (error) showToast('Erro ao salvar ordem das etapas.', 'error');
+      });
+    });
+  }
+
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
 
@@ -80,6 +100,8 @@ export default function App() {
             setActiveFunnelId={setActiveFunnelId}
             showToast={showToast}
             reload={loadAll}
+            updateCardLocal={updateCardLocal}
+            reorderStages={reorderStages}
           />
         )}
         {tab === 'leads' && <LeadsTab funnels={funnelsWithStages} cards={cards} />}
@@ -171,7 +193,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle }) {
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast, reload }) {
+function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -232,7 +254,7 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -253,7 +275,7 @@ function FunisTab({ funnels, cards, activeFunnelId, setActiveFunnelId, showToast
   );
 }
 
-function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
+function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
   const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
@@ -262,6 +284,7 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
   const [filterResponsible, setFilterResponsible] = useState('all');
   const [dragCardId, setDragCardId] = useState(null);
   const [dragOverStageId, setDragOverStageId] = useState(null);
+  const [draggingStageId, setDraggingStageId] = useState(null);
   const [confirmDeleteFunnel, setConfirmDeleteFunnel] = useState(false);
 
   const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
@@ -284,16 +307,17 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
   function openNewCard(stageId) { setEditingCard(null); setTargetStageId(stageId); setShowCardModal(true); }
   function openEditCard(card) { setEditingCard(card); setTargetStageId(card.stage_id); setShowCardModal(true); }
 
-  async function moveStage(stage, direction) {
+  function dropStageOn(targetStage) {
+    if (!draggingStageId || draggingStageId === targetStage.id) { setDraggingStageId(null); return; }
     const sorted = [...funnel.stages].sort((a, b) => a.position - b.position);
-    const idx = sorted.findIndex(s => s.id === stage.id);
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const other = sorted[swapIdx];
-    const { error: e1 } = await supabase.from('stages').update({ position: other.position }).eq('id', stage.id);
-    const { error: e2 } = await supabase.from('stages').update({ position: stage.position }).eq('id', other.id);
-    if (e1 || e2) { showToast('Erro ao reordenar etapa.', 'error'); return; }
-    await reload();
+    const fromIdx = sorted.findIndex(s => s.id === draggingStageId);
+    const toIdx = sorted.findIndex(s => s.id === targetStage.id);
+    if (fromIdx === -1 || toIdx === -1) { setDraggingStageId(null); return; }
+    const reordered = [...sorted];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    reorderStages(funnel.id, reordered.map(s => s.id));
+    setDraggingStageId(null);
   }
 
   async function saveCard(data) {
@@ -343,13 +367,15 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
     setShowCardModal(false);
     showToast('Card excluído.');
   }
-  async function onDropStage(stageId) {
+  function onDropStage(stageId) {
     setDragOverStageId(null);
     if (!dragCardId) return;
-    const { error } = await supabase.from('cards').update({ stage_id: stageId, status: 'active' }).eq('id', dragCardId);
-    if (error) showToast('Erro ao mover: ' + error.message, 'error');
-    await reload();
+    const id = dragCardId;
     setDragCardId(null);
+    updateCardLocal(id, { stage_id: stageId, status: 'active' });
+    supabase.from('cards').update({ stage_id: stageId, status: 'active' }).eq('id', id).then(({ error }) => {
+      if (error) showToast('Erro ao mover: ' + error.message, 'error');
+    });
   }
 
   return (
@@ -375,33 +401,41 @@ function FunnelBoard({ funnel, allCards, reload, onDeleteFunnel, showToast }) {
           const stageCards = visibleCards.filter(c => c.stage_id === stage.id);
           const isWon = stage.id === wonStage?.id;
           const isDragOver = dragOverStageId === stage.id;
+          const isStageDragging = draggingStageId === stage.id;
           return (
             <div
               key={stage.id}
               onDragOver={e => { e.preventDefault(); if (dragOverStageId !== stage.id) setDragOverStageId(stage.id); }}
               onDragLeave={() => setDragOverStageId(prev => (prev === stage.id ? null : prev))}
-              onDrop={() => onDropStage(stage.id)}
+              onDrop={() => { if (draggingStageId) dropStageOn(stage); else onDropStage(stage.id); }}
               style={{
-                minWidth: 226, width: 226, flexShrink: 0, background: theme.surface,
-                border: `1.5px solid ${isDragOver ? theme.accent : theme.border}`, borderRadius: 12, padding: 11,
-                transition: 'border-color .12s, box-shadow .12s', boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
+                minWidth: 226, width: 226, flexShrink: 0,
+                background: isWon ? theme.wonSoft : theme.surface,
+                border: `1.5px solid ${isDragOver ? theme.accent : isWon ? theme.won + '70' : theme.border}`,
+                borderRadius: 12, padding: 11, opacity: isStageDragging ? 0.4 : 1,
+                transition: 'border-color .12s, box-shadow .12s, opacity .12s',
+                boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, padding: '2px 3px' }}>
-                <span style={{ width: 7, height: 7, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, flex: 1, letterSpacing: 0.1 }}>{stage.name}</span>
-                <span style={{ fontSize: 11, color: theme.textMuted, marginRight: 2 }}>{stageCards.length}</span>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <button onClick={() => moveStage(stage, 'up')} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? theme.border : theme.textMuted, padding: 0, lineHeight: 0 }}>
-                    <ChevronUp size={12} />
-                  </button>
-                  <button onClick={() => moveStage(stage, 'down')} disabled={idx === funnel.stages.length - 1} style={{ background: 'none', border: 'none', cursor: idx === funnel.stages.length - 1 ? 'default' : 'pointer', color: idx === funnel.stages.length - 1 ? theme.border : theme.textMuted, padding: 0, lineHeight: 0 }}>
-                    <ChevronDown size={12} />
-                  </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '2px 3px' }}>
+                <div
+                  draggable
+                  onDragStart={e => { e.stopPropagation(); setDraggingStageId(stage.id); }}
+                  onDragEnd={() => setDraggingStageId(null)}
+                  title="Arraste para reordenar"
+                  style={{ cursor: 'grab', color: theme.textMuted, display: 'flex', alignItems: 'center' }}
+                >
+                  <GripVertical size={13} />
                 </div>
+                <span style={{ width: 7, height: 7, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
+                <span style={{
+                  fontSize: 12.5, fontWeight: 700, color: isWon ? theme.won : theme.textSecondary, flex: 1,
+                  letterSpacing: 0.4, textTransform: 'uppercase',
+                }}>{stage.name}</span>
+                <span style={{ fontSize: 11, color: theme.textMuted }}>{stageCards.length}</span>
               </div>
               {isWon && (
-                <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginBottom: 10, padding: '6px 8px', background: theme.wonSoft, borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginBottom: 10, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
                   Total: {fmtMoney(wonTotal)}
                 </div>
               )}
