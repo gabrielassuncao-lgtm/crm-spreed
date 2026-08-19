@@ -9,7 +9,7 @@ import AuthScreen from './AuthScreen';
 import { useTheme } from './theme.jsx';
 import {
   STAGE_PALETTE, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, PLAN_OPTIONS, DURATION_OPTIONS,
-  fmtMoney, toNumericOrNull, normalize, FONT, FONT_LOGO,
+  fmtMoney, toNumericOrNull, normalize, fmtDate, FONT, FONT_LOGO,
 } from './styles';
 
 export default function App() {
@@ -416,6 +416,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   }
 
   async function saveCard(data) {
+    const stageChanged = !editingCard || editingCard.stage_id !== targetStageId;
     const payload = {
       name: data.name.trim(),
       phone: data.phone || null,
@@ -430,11 +431,12 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
       stage_id: targetStageId,
       funnel_id: funnel.id,
     };
+    if (stageChanged) payload.stage_changed_at = new Date().toISOString();
     let error;
     if (editingCard) {
       ({ error } = await supabase.from('cards').update(payload).eq('id', editingCard.id));
     } else {
-      ({ error } = await supabase.from('cards').insert({ ...payload, status: 'active' }));
+      ({ error } = await supabase.from('cards').insert({ ...payload, status: 'active', stage_changed_at: new Date().toISOString() }));
     }
     if (error) { showToast('Não salvou: ' + error.message, 'error'); return; }
     await reload();
@@ -468,8 +470,9 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
     if (!dragCardId) return;
     const id = dragCardId;
     setDragCardId(null);
-    updateCardLocal(id, { stage_id: stageId, status: 'active' });
-    supabase.from('cards').update({ stage_id: stageId, status: 'active' }).eq('id', id).then(({ error }) => {
+    const now = new Date().toISOString();
+    updateCardLocal(id, { stage_id: stageId, status: 'active', stage_changed_at: now });
+    supabase.from('cards').update({ stage_id: stageId, status: 'active', stage_changed_at: now }).eq('id', id).then(({ error }) => {
       if (error) showToast('Erro ao mover: ' + error.message, 'error');
     });
   }
@@ -755,6 +758,13 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
         {onMarkLost && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
       </div>
       {onDelete && <button onClick={onDelete} style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: theme.textMuted, fontSize: 12, cursor: 'pointer' }}>Excluir card</button>}
+
+      {card && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 11, color: theme.textMuted }}>Cadastrado em {fmtDate(card.created_at)}</div>
+          <div style={{ fontSize: 11, color: theme.textMuted }}>Última movimentação de etapa: {fmtDate(card.stage_changed_at || card.created_at)}</div>
+        </div>
+      )}
     </Modal>
   );
 }
