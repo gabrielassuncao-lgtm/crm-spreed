@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
-  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2
+  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
@@ -15,6 +15,9 @@ import {
 export default function App() {
   const { theme, mode, toggle } = useTheme();
   const [session, setSession] = useState(undefined);
+  const [profile, setProfile] = useState(undefined); // undefined = carregando, null = sem perfil ainda
+  const [profiles, setProfiles] = useState([]);
+  const [invites, setInvites] = useState([]);
   const [funnels, setFunnels] = useState([]);
   const [stages, setStages] = useState([]);
   const [cards, setCards] = useState([]);
@@ -42,25 +45,35 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'origins' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'loss_reasons' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invites' }, loadAll)
       .subscribe();
     return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   async function loadAll() {
-    const [{ data: f }, { data: s }, { data: c }, { data: o }, { data: lr }] = await Promise.all([
+    const [{ data: f }, { data: s }, { data: c }, { data: o }, { data: lr }, { data: p }, { data: inv }] = await Promise.all([
       supabase.from('funnels').select('*').order('created_at'),
       supabase.from('stages').select('*').order('position'),
       supabase.from('cards').select('*').order('created_at', { ascending: false }),
       supabase.from('origins').select('*').order('name'),
       supabase.from('loss_reasons').select('*').order('name'),
+      supabase.from('profiles').select('*').order('created_at'),
+      supabase.from('invites').select('*').order('created_at', { ascending: false }),
     ]);
     setFunnels(f || []);
     setStages(s || []);
     setCards(c || []);
     setOrigins(o || []);
     setLossReasons(lr || []);
+    setProfiles(p || []);
+    setInvites(inv || []);
     setActiveFunnelId(prev => prev || (f && f[0]?.id) || null);
+    if (session) {
+      const mine = (p || []).find(x => x.id === session.user.id);
+      setProfile(mine || null);
+    }
   }
 
   function showToast(msg, type = 'ok') {
@@ -139,7 +152,21 @@ export default function App() {
     });
   }
 
-  if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
+  async function createInvite(role) {
+    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id }).select().single();
+    if (error) { showToast('Erro ao gerar convite: ' + error.message, 'error'); return; }
+    setInvites(prev => [data, ...prev]);
+    showToast('Link de convite criado.');
+  }
+
+  async function deleteInvite(id) {
+    const prev = invites;
+    setInvites(inv => inv.filter(i => i.id !== id));
+    const { error } = await supabase.from('invites').delete().eq('id', id);
+    if (error) { setInvites(prev); showToast('Erro ao remover convite: ' + error.message, 'error'); }
+  }
+
+  if (session === undefined || profile === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
 
   const funnelsWithStages = funnels.map(f => ({
@@ -150,10 +177,13 @@ export default function App() {
 
   const originNames = origins.map(o => o.name).sort((a, b) => a.localeCompare(b));
   const reasonNames = lossReasons.map(r => r.name).sort((a, b) => a.localeCompare(b));
+  const myRole = profile?.role || 'member';
+  const isViewer = myRole === 'viewer';
+  const isCreator = myRole === 'creator';
 
   return (
     <Shell>
-      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} />
+      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} isViewer={isViewer} />
       {toast && <Toast toast={toast} />}
       <div style={{ padding: '18px 22px 36px' }}>
         {tab === 'funis' && (
@@ -171,10 +201,21 @@ export default function App() {
             reload={loadAll}
             updateCardLocal={updateCardLocal}
             reorderStages={reorderStages}
+            isViewer={isViewer}
           />
         )}
         {tab === 'leads' && <LeadsTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
         {tab === 'relatorios' && <RelatoriosTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
+        {tab === 'config' && (
+          <SettingsTab
+            profiles={profiles}
+            invites={invites}
+            isCreator={isCreator}
+            onCreateInvite={createInvite}
+            onDeleteInvite={deleteInvite}
+            showToast={showToast}
+          />
+        )}
       </div>
       {showOriginsModal && (
         <ReasonsModal title="Origens" hint="Crie e remova origens. Elas continuam existindo mesmo sem nenhum lead associado." items={origins} onAdd={addOrigin} onDelete={deleteOrigin} onClose={() => setShowOriginsModal(false)} placeholder="Nova origem (ex: Instagram)" />
@@ -215,12 +256,13 @@ function Toast({ toast }) {
 }
 
 /* ---------- TOP BAR ---------- */
-function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, onManageReasons }) {
+function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, onManageReasons, isViewer }) {
   const { theme } = useTheme();
   const tabs = [
     { id: 'funis', label: 'Funis', icon: GitBranch },
     { id: 'leads', label: 'Leads/Clientes', icon: Users },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+    { id: 'config', label: 'Configurações', icon: Shield },
   ];
   return (
     <div style={{ borderBottom: `1px solid ${theme.border}`, padding: '18px 22px 0' }}>
@@ -234,18 +276,22 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={onManageOrigins} title="Gerenciar origens" style={{
-            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
-            display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
-          }}>
-            <Settings2 size={13} /> Origens
-          </button>
-          <button onClick={onManageReasons} title="Gerenciar motivos de perda" style={{
-            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
-            display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
-          }}>
-            <Settings2 size={13} /> Motivos
-          </button>
+          {!isViewer && (
+            <>
+              <button onClick={onManageOrigins} title="Gerenciar origens" style={{
+                background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
+                display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
+              }}>
+                <Settings2 size={13} /> Origens
+              </button>
+              <button onClick={onManageReasons} title="Gerenciar motivos de perda" style={{
+                background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
+                display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
+              }}>
+                <Settings2 size={13} /> Motivos
+              </button>
+            </>
+          )}
           <button onClick={toggle} title="Mudar tema" style={{
             background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textSecondary, cursor: 'pointer',
@@ -280,7 +326,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages }) {
+function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages, isViewer }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -332,16 +378,18 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
             {f.name}
           </button>
         ))}
-        <button onClick={() => setShowNewFunnel(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${theme.border}`,
-          color: theme.textSecondary, borderRadius: 18, padding: '7px 15px', fontSize: 12.5, cursor: 'pointer',
-        }}>
-          <Plus size={13} /> Novo funil
-        </button>
+        {!isViewer && (
+          <button onClick={() => setShowNewFunnel(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${theme.border}`,
+            color: theme.textSecondary, borderRadius: 18, padding: '7px 15px', fontSize: 12.5, cursor: 'pointer',
+          }}>
+            <Plus size={13} /> Novo funil
+          </button>
+        )}
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} isViewer={isViewer} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -362,7 +410,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
   );
 }
 
-function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages }) {
+function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages, isViewer }) {
   const { theme } = useTheme();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
@@ -488,19 +536,27 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <button onClick={() => openNewCard(funnel.stages[0]?.id)} style={{
-          ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 12.5,
-        }}>
-          <Plus size={14} /> Novo lead
-        </button>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontSize: 12.5 }}>
-            <Settings2 size={13} /> Campos de ganho
+        {isViewer ? (
+          <span style={{ fontSize: 12, color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Eye size={13} /> Modo somente visualização
+          </span>
+        ) : (
+          <button onClick={() => openNewCard(funnel.stages[0]?.id)} style={{
+            ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 12.5,
+          }}>
+            <Plus size={14} /> Novo lead
           </button>
-          <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
-            <Trash2 size={14} />
-          </button>
-        </div>
+        )}
+        {!isViewer && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontSize: 12.5 }}>
+              <Settings2 size={13} /> Campos de ganho
+            </button>
+            <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -543,15 +599,17 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '2px 3px' }}>
-                <div
-                  draggable
-                  onDragStart={e => { e.stopPropagation(); setDraggingStageId(stage.id); }}
-                  onDragEnd={() => setDraggingStageId(null)}
-                  title="Arraste para reordenar"
-                  style={{ cursor: 'grab', color: theme.textMuted, display: 'flex', alignItems: 'center' }}
-                >
-                  <GripVertical size={13} />
-                </div>
+                {!isViewer && (
+                  <div
+                    draggable
+                    onDragStart={e => { e.stopPropagation(); setDraggingStageId(stage.id); }}
+                    onDragEnd={() => setDraggingStageId(null)}
+                    title="Arraste para reordenar"
+                    style={{ cursor: 'grab', color: theme.textMuted, display: 'flex', alignItems: 'center' }}
+                  >
+                    <GripVertical size={13} />
+                  </div>
+                )}
                 <span style={{ width: 7, height: 7, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
                 <span style={{
                   fontSize: 12.5, fontWeight: 700, color: isWon ? theme.won : theme.textSecondary, flex: 1,
@@ -572,17 +630,17 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                 {stageCards.map(card => (
                   <div
                     key={card.id}
-                    draggable
-                    onDragStart={e => { setDragCardId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
+                    draggable={!isViewer}
+                    onDragStart={e => { if (isViewer) return; setDragCardId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
                     onDragEnd={() => { setDragCardId(null); setDragOverStageId(null); }}
-                    onClick={() => openEditCard(card)}
+                    onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
-                      background: theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: 'grab', border: `1px solid ${theme.border}`,
+                      background: theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: isViewer ? 'default' : 'grab', border: `1px solid ${theme.border}`,
                       opacity: dragCardId === card.id ? 0.35 : 1, transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       transition: 'opacity .12s, transform .12s, box-shadow .12s', boxShadow: theme.shadowSm,
                       position: 'relative',
                     }}
-                    onMouseDown={e => { e.currentTarget.style.cursor = 'grabbing'; }}
+                    onMouseDown={e => { if (!isViewer) e.currentTarget.style.cursor = 'grabbing'; }}
                   >
                     <div style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary, marginBottom: 3, paddingRight: 26 }}>{card.name}</div>
                     {card.origin && <div style={{ fontSize: 11, color: theme.accent, marginBottom: 3 }}>{card.origin}</div>}
@@ -597,12 +655,14 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                   </div>
                 ))}
               </div>
-              <button onClick={() => openNewCard(stage.id)} style={{
-                width: '100%', marginTop: 9, background: 'none', border: 'none', color: theme.textMuted,
-                padding: '6px', fontSize: 11.5, cursor: 'pointer', textAlign: 'left',
-              }}>
-                + adicionar
-              </button>
+              {!isViewer && (
+                <button onClick={() => openNewCard(stage.id)} style={{
+                  width: '100%', marginTop: 9, background: 'none', border: 'none', color: theme.textMuted,
+                  padding: '6px', fontSize: 11.5, cursor: 'pointer', textAlign: 'left',
+                }}>
+                  + adicionar
+                </button>
+              )}
             </div>
           );
         })}
@@ -982,6 +1042,103 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
     </div>
   );
 }
+
+/* ---------- CONFIGURAÇÕES ---------- */
+const ROLE_LABEL = { creator: 'Creator', member: 'Membro', viewer: 'Visualização' };
+const ROLE_COLOR_KEY = { creator: 'accent', member: 'won', viewer: 'textMuted' };
+
+function SettingsTab({ profiles, invites, isCreator, onCreateInvite, onDeleteInvite, showToast }) {
+  const { theme } = useTheme();
+  const [newRole, setNewRole] = useState('member');
+  const pendingInvites = invites.filter(i => !i.used_at);
+  const usedInvites = invites.filter(i => i.used_at);
+
+  function inviteUrl(token) {
+    return `${window.location.origin}${window.location.pathname}?invite=${token}`;
+  }
+
+  function copyLink(token) {
+    navigator.clipboard.writeText(inviteUrl(token)).then(() => showToast('Link copiado.'));
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 650, color: theme.textPrimary, marginBottom: 12 }}>Quem tem acesso</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {profiles.map(p => (
+            <div key={p.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '11px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
+                {ROLE_LABEL[p.role] || p.role}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {isCreator ? (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 650, color: theme.textPrimary, marginBottom: 12 }}>Convidar alguém novo</div>
+          <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: 15, marginBottom: 18 }}>
+            <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 12px', lineHeight: 1.5 }}>
+              Gere um link e mande pra pessoa. Só quem tem esse link consegue criar uma conta nova no CRM.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13 }}>
+                <option value="member">Acesso de edição (Membro)</option>
+                <option value="viewer">Só visualização</option>
+              </select>
+              <button onClick={() => onCreateInvite(newRole)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '9px 15px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                <Link2 size={14} /> Gerar link
+              </button>
+            </div>
+          </div>
+
+          {pendingInvites.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 8 }}>Links ainda não usados</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {pendingInvites.map(inv => (
+                  <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
+                        {ROLE_LABEL[inv.role]}
+                      </span>
+                      <span style={{ fontSize: 11.5, color: theme.textMuted }}>{fmtDate(inv.created_at)}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        <Copy size={12} /> Copiar link
+                      </button>
+                      <ConfirmDeleteButton onConfirm={() => onDeleteInvite(inv.id)} size={13} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {usedInvites.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 8 }}>Já usados</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {usedInvites.map(inv => (
+                  <div key={inv.id} style={{ fontSize: 12, color: theme.textMuted, padding: '6px 2px' }}>
+                    {ROLE_LABEL[inv.role]} · usado em {fmtDate(inv.used_at)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p style={{ fontSize: 12.5, color: theme.textMuted }}>Só quem tem o papel de Creator pode gerar links de convite.</p>
+      )}
+    </div>
+  );
+}
+
 function StatCard({ icon, label, value, color }) {
   const { theme } = useTheme();
   return (

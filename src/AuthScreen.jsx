@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User as UserIcon, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { FONT, FONT_LOGO } from './styles';
@@ -12,6 +12,17 @@ export default function AuthScreen() {
   const [err, setErr] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
+  const [invite, setInvite] = useState(undefined); // undefined = checando, null = sem convite válido, objeto = válido
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('invite');
+    if (!token) { setInvite(null); return; }
+    supabase.from('invites').select('*').eq('token', token).is('used_at', null).maybeSingle().then(({ data }) => {
+      setInvite(data || null);
+      if (data) setMode('register');
+    });
+  }, []);
 
   async function submit() {
     setErr('');
@@ -25,11 +36,15 @@ export default function AuthScreen() {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) setErr(traduzErro(error.message));
     } else {
-      const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+      const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
       if (error) {
         setErr(traduzErro(error.message));
+      } else if (data.session) {
+        // Cria o perfil vinculado ao convite e marca o convite como usado
+        await supabase.from('profiles').insert({ id: data.user.id, email: email.trim(), role: invite.role });
+        await supabase.from('invites').update({ used_by: data.user.id, used_at: new Date().toISOString() }).eq('id', invite.id);
       } else {
-        setInfo('Conta criada. Se a confirmação por e-mail estiver ativa no seu projeto Supabase, verifique a caixa de entrada antes de entrar.');
+        setInfo('Conta criada. Verifique seu e-mail para confirmar antes de entrar.');
       }
     }
     setLoading(false);
@@ -51,6 +66,8 @@ export default function AuthScreen() {
     padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
   };
 
+  const canRegister = mode === 'register' && invite;
+
   return (
     <div style={{ minHeight: 440, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
       <div style={{ width: '100%', maxWidth: 300 }}>
@@ -59,7 +76,7 @@ export default function AuthScreen() {
             CRM <span style={{ color: theme.accent }}>DOXA</span>
           </h1>
           <p style={{ fontSize: 12.5, color: theme.textMuted, margin: '6px 0 0' }}>
-            {mode === 'login' ? 'Entre com sua conta' : 'Crie sua conta de acesso'}
+            {canRegister ? 'Crie sua conta de acesso' : 'Entre com sua conta'}
           </p>
         </div>
 
@@ -81,16 +98,19 @@ export default function AuthScreen() {
         {info && <div style={{ color: theme.accent, fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>{info}</div>}
 
         <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', opacity: loading ? 0.6 : 1 }}>
-          {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+          {loading ? 'Aguarde...' : canRegister ? 'Criar conta' : 'Entrar'}
         </button>
 
-        <p style={{ textAlign: 'center', fontSize: 12.5, color: theme.textMuted, marginTop: 18 }}>
-          {mode === 'login' ? 'Ainda não tem conta? ' : 'Já tem conta? '}
-          <span onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErr(''); setInfo(''); }}
-            style={{ color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
-            {mode === 'login' ? 'Criar agora' : 'Entrar'}
-          </span>
-        </p>
+        {mode === 'login' && invite === null && (
+          <p style={{ textAlign: 'center', fontSize: 11.5, color: theme.textMuted, marginTop: 18, lineHeight: 1.5 }}>
+            Novas contas só podem ser criadas com um link de convite.
+          </p>
+        )}
+        {canRegister && (
+          <p style={{ textAlign: 'center', fontSize: 11.5, color: theme.textMuted, marginTop: 18, lineHeight: 1.5 }}>
+            Você foi convidado com acesso de {invite.role === 'viewer' ? 'visualização' : 'edição'}.
+          </p>
+        )}
       </div>
     </div>
   );
