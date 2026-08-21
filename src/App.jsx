@@ -986,9 +986,11 @@ function StatCard({ icon, label, value, color }) {
   const { theme } = useTheme();
   return (
     <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 11, padding: '15px' }}>
-      <div style={{ color: color || theme.accent, marginBottom: 10 }}>{icon}</div>
-      <div style={{ fontSize: 19, fontWeight: 650, color: theme.textPrimary, letterSpacing: -0.2 }}>{value}</div>
-      <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ color: color || theme.accent, display: 'flex' }}>{icon}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 650, color: theme.textPrimary }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: theme.textPrimary, letterSpacing: -0.3 }}>{value}</div>
     </div>
   );
 }
