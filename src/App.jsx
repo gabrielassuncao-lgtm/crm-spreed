@@ -9,7 +9,7 @@ import AuthScreen from './AuthScreen';
 import { useTheme } from './theme.jsx';
 import {
   STAGE_PALETTE, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, PLAN_OPTIONS, DURATION_OPTIONS,
-  fmtMoney, toNumericOrNull, normalize, fmtDate, FONT, FONT_LOGO,
+  fmtMoney, toNumericOrNull, normalize, fmtDate, fmtElapsed, FONT, FONT_LOGO,
 } from './styles';
 
 export default function App() {
@@ -568,7 +568,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                   </div>
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minHeight: 40 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minHeight: 40, maxHeight: 460, overflowY: 'auto', paddingRight: 2 }}>
                 {stageCards.map(card => (
                   <div
                     key={card.id}
@@ -580,16 +580,20 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                       background: theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: 'grab', border: `1px solid ${theme.border}`,
                       opacity: dragCardId === card.id ? 0.35 : 1, transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       transition: 'opacity .12s, transform .12s, box-shadow .12s', boxShadow: theme.shadowSm,
+                      position: 'relative',
                     }}
                     onMouseDown={e => { e.currentTarget.style.cursor = 'grabbing'; }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary, marginBottom: 3 }}>{card.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary, marginBottom: 3, paddingRight: 26 }}>{card.name}</div>
                     {card.origin && <div style={{ fontSize: 11, color: theme.accent, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
                     {isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
                     {isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
                       <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
+                    <span title="Tempo nessa etapa" style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 9.5, color: theme.textMuted, fontWeight: 600 }}>
+                      {fmtElapsed(card.stage_changed_at || card.created_at)}
+                    </span>
                   </div>
                 ))}
               </div>
