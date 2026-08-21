@@ -166,8 +166,9 @@ export default function App() {
     if (error) { setInvites(prev); showToast('Erro ao remover convite: ' + error.message, 'error'); }
   }
 
-  if (session === undefined || profile === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
+  if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
+  if (profile === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
 
   const funnelsWithStages = funnels.map(f => ({
     ...f,
