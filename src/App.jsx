@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
-  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye
+  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, Pencil, Check
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
@@ -123,6 +123,37 @@ export default function App() {
     if (error) { setOrigins(prev); showToast('Erro ao excluir origem: ' + error.message, 'error'); }
   }
 
+  async function updateOrigin(id, newName) {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const current = origins.find(o => o.id === id);
+    if (!current) return;
+    const oldName = current.name;
+    if (oldName === trimmed) return;
+    if (origins.some(o => o.id !== id && o.name.toLowerCase() === trimmed.toLowerCase())) {
+      showToast('Já existe uma origem com esse nome.', 'error');
+      return;
+    }
+    const prevOrigins = origins;
+    const prevCards = cards;
+    setOrigins(o => o.map(x => (x.id === id ? { ...x, name: trimmed } : x)));
+    setCards(cs => cs.map(c => (c.origin === oldName ? { ...c, origin: trimmed } : c)));
+
+    const { error: err1 } = await supabase.from('origins').update({ name: trimmed }).eq('id', id);
+    if (err1) {
+      setOrigins(prevOrigins);
+      setCards(prevCards);
+      showToast('Erro ao renomear origem: ' + err1.message, 'error');
+      return;
+    }
+    const { error: err2 } = await supabase.from('cards').update({ origin: trimmed }).eq('origin', oldName);
+    if (err2) {
+      showToast('Origem renomeada, mas houve erro ao atualizar alguns cards: ' + err2.message, 'error');
+      return;
+    }
+    showToast('Origem renomeada com sucesso.', 'success');
+  }
+
   async function addLossReason(name) {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -219,7 +250,7 @@ export default function App() {
         )}
       </div>
       {showOriginsModal && (
-        <ReasonsModal title="Origens" hint="Crie e remova origens. Elas continuam existindo mesmo sem nenhum lead associado." items={origins} onAdd={addOrigin} onDelete={deleteOrigin} onClose={() => setShowOriginsModal(false)} placeholder="Nova origem (ex: Instagram)" />
+        <ReasonsModal title="Origens" hint="Crie, edite e remova origens. Editar o nome atualiza automaticamente todos os cards que usam essa origem." items={origins} onAdd={addOrigin} onDelete={deleteOrigin} onEdit={updateOrigin} onClose={() => setShowOriginsModal(false)} placeholder="Nova origem (ex: Instagram)" />
       )}
       {showReasonsModal && (
         <ReasonsModal title="Motivos de perda" hint="Crie e remova motivos usados ao marcar um lead como perdido." items={lossReasons} onAdd={addLossReason} onDelete={deleteLossReason} onClose={() => setShowReasonsModal(false)} />
@@ -1351,15 +1382,34 @@ function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
   );
 }
 
-function ReasonsModal({ title, hint, items, onAdd, onDelete, onClose, placeholder = 'Novo item' }) {
+function ReasonsModal({ title, hint, items, onAdd, onDelete, onEdit, onClose, placeholder = 'Novo item' }) {
   const { theme } = useTheme();
   const [name, setName] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
   const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
 
   function submit() {
     if (!name.trim()) return;
     onAdd(name);
     setName('');
+  }
+
+  function startEdit(item) {
+    setEditingId(item.id);
+    setEditValue(item.name);
+  }
+
+  function confirmEdit() {
+    if (!editValue.trim()) return;
+    onEdit(editingId, editValue);
+    setEditingId(null);
+    setEditValue('');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditValue('');
   }
 
   return (
@@ -1385,9 +1435,38 @@ function ReasonsModal({ title, hint, items, onAdd, onDelete, onClose, placeholde
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
           {sorted.map(o => (
-            <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '8px 11px' }}>
-              <span style={{ fontSize: 13, color: theme.textPrimary }}>{o.name}</span>
-              <ConfirmDeleteButton onConfirm={() => onDelete(o.id)} />
+            <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '8px 11px', gap: 8 }}>
+              {editingId === o.id ? (
+                <>
+                  <input
+                    autoFocus
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') confirmEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                    style={{ flex: 1, boxSizing: 'border-box', background: theme.surface, border: `1px solid ${theme.accent}`, borderRadius: 7, padding: '6px 9px', color: theme.textPrimary, fontSize: 13 }}
+                  />
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={confirmEdit} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', padding: 2, display: 'flex' }}>
+                      <Check size={14} />
+                    </button>
+                    <button onClick={cancelEdit} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: 13, color: theme.textPrimary }}>{o.name}</span>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {onEdit && (
+                      <button onClick={() => startEdit(o)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex' }}>
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                    <ConfirmDeleteButton onConfirm={() => onDelete(o.id)} />
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
