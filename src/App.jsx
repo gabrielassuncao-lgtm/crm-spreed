@@ -461,19 +461,22 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
 
   const funnelCards = allCards.filter(c => c.funnel_id === funnel.id);
-  const activeCards = funnelCards.filter(c => c.status !== 'lost');
-  const lostCards = funnelCards.filter(c => c.status === 'lost');
-
   const responsibles = [...new Set(funnelCards.map(c => c.responsible).filter(Boolean))];
 
-  const visibleCards = activeCards.filter(c =>
+  const baseFiltered = funnelCards.filter(c =>
     (filterOrigin === 'all' || c.origin === filterOrigin) &&
     (filterResponsible === 'all' || c.responsible === filterResponsible) &&
     ((c.name || '') + (c.email || '') + (c.phone || '')).toLowerCase().includes(search.toLowerCase())
   );
 
+  const visibleCards = baseFiltered.filter(c => {
+    if (viewStatus === 'active') return c.status !== 'lost';
+    if (viewStatus === 'lost') return c.status === 'lost';
+    return true;
+  });
+
   const wonStage = funnel.stages[funnel.stages.length - 1];
-  const wonTotal = visibleCards.filter(c => c.stage_id === wonStage?.id).reduce((sum, c) => sum + (parseFloat(c.value) || 0), 0);
+  const wonTotal = baseFiltered.filter(c => c.status !== 'lost' && c.stage_id === wonStage?.id).reduce((sum, c) => sum + (parseFloat(c.value) || 0), 0);
 
   // Conversão do funil, já considerando os filtros de origem/responsável ativos acima.
   const filteredAllStatus = funnelCards.filter(c =>
@@ -608,7 +611,6 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
         </div>
       </div>
 
-      {viewStatus !== 'lost' && (
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
         {funnel.stages.map((stage, idx) => {
           const stageCards = visibleCards.filter(c => c.stage_id === stage.id);
@@ -659,33 +661,37 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minHeight: 40, maxHeight: 460, overflowY: 'auto', paddingRight: 2 }}>
-                {stageCards.map(card => (
+                {stageCards.map(card => {
+                  const isLost = card.status === 'lost';
+                  return (
                   <div
                     key={card.id}
-                    draggable={!isViewer}
-                    onDragStart={e => { if (isViewer) return; setDragCardId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
+                    draggable={!isViewer && !isLost}
+                    onDragStart={e => { if (isViewer || isLost) return; setDragCardId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
                     onDragEnd={() => { setDragCardId(null); setDragOverStageId(null); }}
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
-                      background: theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: isViewer ? 'default' : 'grab', border: `1px solid ${theme.border}`,
-                      opacity: dragCardId === card.id ? 0.35 : 1, transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
+                      background: isLost ? theme.lostSoft : theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'), border: `1px solid ${isLost ? theme.lost + '60' : theme.border}`,
+                      opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       transition: 'opacity .12s, transform .12s, box-shadow .12s', boxShadow: theme.shadowSm,
                       position: 'relative',
                     }}
-                    onMouseDown={e => { if (!isViewer) e.currentTarget.style.cursor = 'grabbing'; }}
+                    onMouseDown={e => { if (!isViewer && !isLost) e.currentTarget.style.cursor = 'grabbing'; }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary, marginBottom: 3, paddingRight: 26 }}>{card.name}</div>
-                    {card.origin && <div style={{ fontSize: 11, color: theme.accent, marginBottom: 3 }}>{card.origin}</div>}
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isLost ? theme.lost : theme.textPrimary, marginBottom: 3, paddingRight: 26 }}>{card.name}</div>
+                    {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.accent, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
-                    {isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
-                    {isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
+                    {isLost && card.loss_reason && <div style={{ fontSize: 10.5, color: theme.lost, marginTop: 3, fontStyle: 'italic' }}>{card.loss_reason}</div>}
+                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
+                    {!isLost && isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
                       <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
                     <span title="Tempo nessa etapa" style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 9.5, color: theme.textMuted, fontWeight: 600 }}>
                       {fmtElapsed(card.stage_changed_at || card.created_at)}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               {!isViewer && (
                 <button onClick={() => openNewCard(stage.id)} style={{
@@ -699,34 +705,9 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
           );
         })}
       </div>
-      )}
-
-      {viewStatus !== 'active' && lostCards.length > 0 && (
-        <div style={{ marginTop: 26 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, marginBottom: 10 }}>Perdidos ({lostCards.length})</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {lostCards.map(card => (
-              <div key={card.id} style={{ background: theme.lostSoft, border: `1px solid ${theme.lost}30`, borderRadius: 9, padding: '9px 11px', minWidth: 180 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.lost, marginBottom: 2 }}>{card.name}</div>
-                <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 7 }}>{card.origin} · {card.responsible}</div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <button onClick={() => restoreCard(card.id)} style={{ fontSize: 11, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', padding: 0 }}>Restaurar</button>
-                  <ConfirmDeleteLink onConfirm={() => deleteCard(card.id)} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {viewStatus !== 'active' && lostCards.length === 0 && (
-        <div style={{ marginTop: 26, textAlign: 'center', padding: '32px 16px', color: theme.textMuted, fontSize: 13 }}>
-          Nenhum card perdido nesse funil.
-        </div>
-      )}
 
       {showCardModal && (
-        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} wonFields={funnel.won_fields} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => { setShowCardModal(false); setShowLostPrompt(true); } : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
+        <CardModal card={editingCard} stages={funnel.stages} origins={origins} onAddOrigin={onAddOrigin} targetStageId={targetStageId} setTargetStageId={setTargetStageId} isWonStage={targetStageId === wonStage?.id} wonFields={funnel.won_fields} onSave={saveCard} onClose={() => setShowCardModal(false)} onMarkLost={editingCard ? () => { setShowCardModal(false); setShowLostPrompt(true); } : null} onRestore={editingCard && editingCard.status === 'lost' ? () => restoreCard(editingCard.id) : null} onDelete={editingCard ? () => deleteCard(editingCard.id) : null} />
       )}
 
       {showLostPrompt && editingCard && (
@@ -788,7 +769,7 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
   );
 }
 
-function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTargetStageId, isWonStage, wonFields, onSave, onClose, onMarkLost, onDelete }) {
+function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTargetStageId, isWonStage, wonFields, onSave, onClose, onMarkLost, onRestore, onDelete }) {
   const { theme } = useTheme();
   const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
@@ -891,10 +872,16 @@ function CardModal({ card, stages, origins, onAddOrigin, targetStageId, setTarge
           ))}
         </>
       )}
+      {card?.status === 'lost' && (
+        <div style={{ fontSize: 12, color: theme.lost, background: theme.lostSoft, borderRadius: 8, padding: '8px 11px', marginTop: 12 }}>
+          Este lead está marcado como perdido{card.loss_reason ? `: ${card.loss_reason}` : '.'}
+        </div>
+      )}
       {err && <div style={{ fontSize: 12.5, color: theme.lost, marginTop: 10 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
         <button onClick={submit} style={{ ...primaryBtn, flex: 1 }}>Salvar</button>
-        {onMarkLost && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
+        {onRestore && <button onClick={onRestore} style={{ background: theme.wonSoft, color: theme.won, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Restaurar</button>}
+        {onMarkLost && card?.status !== 'lost' && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
       </div>
       {onDelete && (
         confirmDelete ? (
