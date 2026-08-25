@@ -28,12 +28,20 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [showOriginsModal, setShowOriginsModal] = useState(false);
   const [showReasonsModal, setShowReasonsModal] = useState(false);
+  const [graceExpired, setGraceExpired] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setGraceExpired(false);
+    if (!session) return;
+    const t = setTimeout(() => setGraceExpired(true), 1500);
+    return () => clearTimeout(t);
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -197,9 +205,34 @@ export default function App() {
     if (error) { setInvites(prev); showToast('Erro ao remover convite: ' + error.message, 'error'); }
   }
 
+  async function removeAccess(profileId) {
+    if (profileId === session.user.id) {
+      showToast('Você não pode remover seu próprio acesso.', 'error');
+      return;
+    }
+    const prev = profiles;
+    setProfiles(ps => ps.filter(p => p.id !== profileId));
+    const { error } = await supabase.from('profiles').delete().eq('id', profileId);
+    if (error) { setProfiles(prev); showToast('Erro ao remover acesso: ' + error.message, 'error'); return; }
+    showToast('Acesso removido.');
+  }
+
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
   if (profile === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
+  if (profile === null) {
+    if (!graceExpired) return <Shell><Centered>Carregando...</Centered></Shell>;
+    return (
+      <Shell>
+        <Centered>
+          <div style={{ textAlign: 'center', maxWidth: 320 }}>
+            <p style={{ fontSize: 13.5, marginBottom: 14 }}>Seu acesso a este CRM foi removido.</p>
+            <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: '1px solid currentColor', borderRadius: 9, padding: '8px 16px', fontSize: 12.5, cursor: 'pointer', color: 'inherit' }}>Sair</button>
+          </div>
+        </Centered>
+      </Shell>
+    );
+  }
 
   const funnelsWithStages = funnels.map(f => ({
     ...f,
@@ -209,7 +242,7 @@ export default function App() {
 
   const originNames = origins.map(o => o.name).sort((a, b) => a.localeCompare(b));
   const reasonNames = lossReasons.map(r => r.name).sort((a, b) => a.localeCompare(b));
-  const myRole = profile?.role || 'member';
+  const myRole = profile.role;
   const isViewer = myRole === 'viewer';
   const isCreator = myRole === 'creator';
 
@@ -243,8 +276,10 @@ export default function App() {
             profiles={profiles}
             invites={invites}
             isCreator={isCreator}
+            currentUserId={session.user.id}
             onCreateInvite={createInvite}
             onDeleteInvite={deleteInvite}
+            onRemoveAccess={removeAccess}
             showToast={showToast}
           />
         )}
@@ -1078,7 +1113,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
 const ROLE_LABEL = { creator: 'Creator', member: 'Membro', viewer: 'Visualização' };
 const ROLE_COLOR_KEY = { creator: 'accent', member: 'won', viewer: 'textMuted' };
 
-function SettingsTab({ profiles, invites, isCreator, onCreateInvite, onDeleteInvite, showToast }) {
+function SettingsTab({ profiles, invites, isCreator, currentUserId, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
   const { theme } = useTheme();
   const [newRole, setNewRole] = useState('member');
   const pendingInvites = invites.filter(i => !i.used_at);
@@ -1098,11 +1133,16 @@ function SettingsTab({ profiles, invites, isCreator, onCreateInvite, onDeleteInv
         <div style={{ fontSize: 13, fontWeight: 650, color: theme.textPrimary, marginBottom: 12 }}>Quem tem acesso</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {profiles.map(p => (
-            <div key={p.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '11px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={p.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '11px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
-                {ROLE_LABEL[p.role] || p.role}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
+                  {ROLE_LABEL[p.role] || p.role}
+                </span>
+                {isCreator && p.id !== currentUserId && (
+                  <ConfirmDeleteButton onConfirm={() => onRemoveAccess(p.id)} size={13} />
+                )}
+              </div>
             </div>
           ))}
         </div>
