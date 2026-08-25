@@ -29,10 +29,14 @@ export default function App() {
   const [showOriginsModal, setShowOriginsModal] = useState(false);
   const [showReasonsModal, setShowReasonsModal] = useState(false);
   const [graceExpired, setGraceExpired] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -217,6 +221,7 @@ export default function App() {
     showToast('Acesso removido.');
   }
 
+  if (recoveryMode) return <Shell><NewPasswordScreen onDone={() => setRecoveryMode(false)} /></Shell>;
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
   if (profile === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
@@ -1207,6 +1212,62 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, onCreateInvi
         <p style={{ fontSize: 12.5, color: theme.textMuted }}>Só quem tem o papel de Creator pode gerar links de convite.</p>
       )}
     </div>
+  );
+}
+
+function NewPasswordScreen({ onDone }) {
+  const { theme } = useTheme();
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function submit() {
+    setErr('');
+    if (password.length < 6) { setErr('A senha precisa ter pelo menos 6 caracteres.'); return; }
+    if (password !== confirm) { setErr('As senhas não coincidem.'); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) { setErr(error.message); return; }
+    setDone(true);
+  }
+
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`,
+    borderRadius: 10, padding: '11px 12px', color: theme.textPrimary, fontSize: 14, outline: 'none', marginBottom: 12,
+  };
+  const primaryBtn = {
+    background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9,
+    padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+  };
+
+  return (
+    <Centered>
+      <div style={{ width: '100%', maxWidth: 300 }}>
+        <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary, textAlign: 'center' }}>Definir nova senha</h2>
+        {done ? (
+          <>
+            <p style={{ fontSize: 12.5, color: theme.textMuted, textAlign: 'center', margin: '10px 0 16px', lineHeight: 1.5 }}>
+              Senha atualizada. Você já pode continuar.
+            </p>
+            <button onClick={onDone} style={{ ...primaryBtn, width: '100%' }}>Entrar no CRM</button>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 12, color: theme.textMuted, textAlign: 'center', margin: '10px 0 16px' }}>Escolha uma nova senha para sua conta.</p>
+            <input type="password" placeholder="Nova senha" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="Confirmar nova senha" value={confirm} onChange={e => setConfirm(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submit()} style={inputStyle} />
+            {err && <div style={{ fontSize: 12.5, color: theme.lost, marginBottom: 12 }}>{err}</div>}
+            <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', opacity: loading ? 0.6 : 1 }}>
+              {loading ? 'Salvando...' : 'Salvar nova senha'}
+            </button>
+          </>
+        )}
+      </div>
+    </Centered>
   );
 }
 

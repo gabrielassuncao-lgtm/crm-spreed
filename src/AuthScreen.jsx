@@ -27,6 +27,17 @@ export default function AuthScreen() {
   async function submit() {
     setErr('');
     setInfo('');
+    if (mode === 'forgot') {
+      if (!email.trim()) { setErr('Informe seu e-mail.'); return; }
+      setLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
+      });
+      setLoading(false);
+      if (error) setErr(traduzErro(error.message));
+      else setInfo('Se esse e-mail tiver uma conta, enviamos um link de redefinição. Confira também o spam.');
+      return;
+    }
     if (!email.trim() || !password.trim()) {
       setErr('Preencha e-mail e senha.');
       return;
@@ -76,19 +87,22 @@ export default function AuthScreen() {
             CRM <span style={{ color: theme.accent }}>DOXA</span>
           </h1>
           <p style={{ fontSize: 12.5, color: theme.textMuted, margin: '6px 0 0' }}>
-            {canRegister ? 'Crie sua conta de acesso' : 'Entre com sua conta'}
+            {mode === 'forgot' ? 'Redefinir senha' : canRegister ? 'Crie sua conta de acesso' : 'Entre com sua conta'}
           </p>
         </div>
 
-        <div style={{ position: 'relative', marginBottom: 10 }}>
+        <div style={{ position: 'relative', marginBottom: mode === 'forgot' ? 14 : 10 }}>
           <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><UserIcon size={14} /></div>
-          <input placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+          <input placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && mode === 'forgot' && submit()} style={inputStyle} />
         </div>
-        <div style={{ position: 'relative', marginBottom: 14 }}>
-          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><Lock size={14} /></div>
-          <input type="password" placeholder="Senha (mín. 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()} style={inputStyle} />
-        </div>
+        {mode !== 'forgot' && (
+          <div style={{ position: 'relative', marginBottom: 14 }}>
+            <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><Lock size={14} /></div>
+            <input type="password" placeholder="Senha (mín. 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submit()} style={inputStyle} />
+          </div>
+        )}
 
         {err && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.lost, fontSize: 12.5, marginBottom: 12 }}>
@@ -98,8 +112,23 @@ export default function AuthScreen() {
         {info && <div style={{ color: theme.accent, fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>{info}</div>}
 
         <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', opacity: loading ? 0.6 : 1 }}>
-          {loading ? 'Aguarde...' : canRegister ? 'Criar conta' : 'Entrar'}
+          {loading ? 'Aguarde...' : mode === 'forgot' ? 'Enviar link de redefinição' : canRegister ? 'Criar conta' : 'Entrar'}
         </button>
+
+        {mode === 'login' && (
+          <p style={{ textAlign: 'center', fontSize: 11.5, marginTop: 14 }}>
+            <span onClick={() => { setMode('forgot'); setErr(''); setInfo(''); }} style={{ color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+              Esqueci minha senha
+            </span>
+          </p>
+        )}
+        {mode === 'forgot' && (
+          <p style={{ textAlign: 'center', fontSize: 11.5, marginTop: 14 }}>
+            <span onClick={() => { setMode('login'); setErr(''); setInfo(''); }} style={{ color: theme.textMuted, cursor: 'pointer' }}>
+              Voltar para o login
+            </span>
+          </p>
+        )}
 
         {mode === 'login' && invite === null && (
           <p style={{ textAlign: 'center', fontSize: 11.5, color: theme.textMuted, marginTop: 18, lineHeight: 1.5 }}>
