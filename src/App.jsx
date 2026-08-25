@@ -910,6 +910,7 @@ function LeadsTab({ funnels, cards, origins }) {
   const { theme } = useTheme();
   const [search, setSearch] = useState('');
   const [filterOrigin, setFilterOrigin] = useState('all');
+  const [filterFunnel, setFilterFunnel] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
 
@@ -923,13 +924,14 @@ function LeadsTab({ funnels, cards, origins }) {
   let filtered = cards.filter(c =>
     ((c.name || '') + (c.email || '') + (c.phone || '') + (c.origin || '') + (c.responsible || '')).toLowerCase().includes(search.toLowerCase()) &&
     (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterFunnel === 'all' || c.funnel_id === filterFunnel) &&
     (filterStatus === 'all' || (filterStatus === 'lost' ? c.status === 'lost' : c.status !== 'lost'))
   );
   if (sortBy === 'name') filtered = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   else if (sortBy === 'origin') filtered = [...filtered].sort((a, b) => (a.origin || '').localeCompare(b.origin || ''));
   else filtered = [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const cols = '1fr 1.2fr 1fr 1.3fr 0.9fr 0.9fr 1.1fr';
+  const cols = '0.85fr 1fr 1.2fr 1fr 1.3fr 0.85fr 0.85fr 1.3fr';
   const th = { fontSize: 10.5, fontWeight: 700, color: theme.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', padding: '10px 12px' };
   const td = { fontSize: 12.5, color: theme.textSecondary, padding: '11px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
@@ -939,6 +941,13 @@ function LeadsTab({ funnels, cards, origins }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 12px', maxWidth: 260, flex: '1 1 200px' }}>
           <Filter size={13} color={theme.textMuted} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13, width: '100%' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+          <GitBranch size={12} color={theme.textMuted} />
+          <select value={filterFunnel} onChange={e => setFilterFunnel(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+            <option value="all">Todos os funis</option>
+            {funnels.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
         </div>
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
@@ -963,22 +972,25 @@ function LeadsTab({ funnels, cards, origins }) {
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>Nenhum lead encontrado.</div>
       ) : (
         <div style={{ border: `1px solid ${theme.border}`, borderRadius: 11, overflow: 'hidden', overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 820 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 900 }}>
+            <div style={th}>Funil</div>
             <div style={th}>Etapa</div>
             <div style={th}>Nome</div>
             <div style={th}>Telefone</div>
             <div style={th}>E-mail</div>
             <div style={th}>Origem</div>
             <div style={th}>Responsável</div>
-            <div style={th}>Motivo</div>
+            <div style={th}>Motivos de Perda</div>
           </div>
           {filtered.map((c, i) => {
             const stage = stageOf(c);
+            const funnelName = funnels.find(f => f.id === c.funnel_id)?.name || '—';
             return (
               <div key={c.id} style={{
                 display: 'grid', gridTemplateColumns: cols, background: i % 2 === 0 ? theme.surface : theme.surfaceAlt + '80',
-                borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${theme.border}`, minWidth: 820,
+                borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${theme.border}`, minWidth: 900,
               }}>
+                <div style={{ ...td, color: theme.textSecondary }}>{funnelName}</div>
                 <div style={{ ...td }}>
                   <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 8px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
                     {stage.name}
