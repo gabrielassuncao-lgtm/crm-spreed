@@ -1073,18 +1073,18 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
   const totalValue = won.reduce((sum, c) => sum + (parseFloat(c.value) || 0), 0);
   const conversionTotal = total > 0 ? ((won.length / total) * 100).toFixed(1) : '0';
 
-  // Conversão com base em "reunião realizada": entre quem chegou nessa etapa (ou passou dela, incluindo ganho),
-  // quantos foram ganhos.
+  // Conversão com base em "reunião realizada": entre quem chegou nessa etapa (ou passou dela, incluindo ganho) —
+  // contando também quem foi perdido depois de chegar lá — quantos foram ganhos.
   let meetingReached = 0;
   let meetingWon = 0;
   funnels.forEach(f => {
     const meetingStage = f.stages.find(s => normalize(s.name).includes('reuniao realizada') || (normalize(s.name).includes('reuniao') && normalize(s.name).includes('realizada')));
     const wonStage = f.stages[f.stages.length - 1];
     if (!meetingStage || !wonStage) return;
-    const funnelCards = cards.filter(c => c.funnel_id === f.id && c.status !== 'lost');
+    const funnelCards = cards.filter(c => c.funnel_id === f.id);
     const reached = funnelCards.filter(c => c.stage_id === meetingStage.id || c.stage_id === wonStage.id);
     meetingReached += reached.length;
-    meetingWon += reached.filter(c => c.stage_id === wonStage.id).length;
+    meetingWon += reached.filter(c => c.status !== 'lost' && c.stage_id === wonStage.id).length;
   });
   const conversionMeeting = meetingReached > 0 ? ((meetingWon / meetingReached) * 100).toFixed(1) : null;
 
