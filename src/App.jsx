@@ -113,6 +113,44 @@ export default function App() {
     });
   }
 
+  async function renameStage(id, newName) {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const prev = stages;
+    setStages(ss => ss.map(s => (s.id === id ? { ...s, name: trimmed } : s)));
+    const { error } = await supabase.from('stages').update({ name: trimmed }).eq('id', id);
+    if (error) { setStages(prev); showToast('Erro ao renomear etapa: ' + error.message, 'error'); }
+  }
+
+  async function addStage(funnelId, name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const funnelStages = stages.filter(s => s.funnel_id === funnelId);
+    const nextPosition = funnelStages.length;
+    const color = STAGE_PALETTE[nextPosition % STAGE_PALETTE.length];
+    const { data, error } = await supabase.from('stages').insert({ funnel_id: funnelId, name: trimmed, color, position: nextPosition }).select().single();
+    if (error) { showToast('Erro ao criar etapa: ' + error.message, 'error'); return; }
+    setStages(ss => [...ss, data]);
+    showToast('Etapa criada.');
+  }
+
+  async function deleteStage(id) {
+    const cardsInStage = cards.filter(c => c.stage_id === id);
+    if (cardsInStage.length > 0) {
+      showToast(`Essa etapa tem ${cardsInStage.length} card(s). Mova ou exclua eles antes de apagar a etapa.`, 'error');
+      return;
+    }
+    const funnelStages = stages.filter(s => s.funnel_id === stages.find(x => x.id === id)?.funnel_id);
+    if (funnelStages.length <= 1) {
+      showToast('O funil precisa ter pelo menos uma etapa.', 'error');
+      return;
+    }
+    const prev = stages;
+    setStages(ss => ss.filter(s => s.id !== id));
+    const { error } = await supabase.from('stages').delete().eq('id', id);
+    if (error) { setStages(prev); showToast('Erro ao apagar etapa: ' + error.message, 'error'); }
+  }
+
   async function addOrigin(name) {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -271,6 +309,9 @@ export default function App() {
             reload={loadAll}
             updateCardLocal={updateCardLocal}
             reorderStages={reorderStages}
+            onRenameStage={renameStage}
+            onAddStage={addStage}
+            onDeleteStage={deleteStage}
             isViewer={isViewer}
           />
         )}
@@ -405,7 +446,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages, isViewer }) {
+function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages, onRenameStage, onAddStage, onDeleteStage, isViewer }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -468,7 +509,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} isViewer={isViewer} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} onRenameStage={onRenameStage} onAddStage={onAddStage} onDeleteStage={onDeleteStage} isViewer={isViewer} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -489,9 +530,13 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
   );
 }
 
-function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages, isViewer }) {
+function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages, onRenameStage, onAddStage, onDeleteStage, isViewer }) {
   const { theme } = useTheme();
   const { hidden: valuesHidden } = useValuesVisibility();
+  const [editingStageId, setEditingStageId] = useState(null);
+  const [editingStageName, setEditingStageName] = useState('');
+  const [showAddStage, setShowAddStage] = useState(false);
+  const [newStageName, setNewStageName] = useState('');
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [targetStageId, setTargetStageId] = useState(funnel.stages[0]?.id);
@@ -693,11 +738,38 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                   </div>
                 )}
                 <span style={{ width: 7, height: 7, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
-                <span style={{
-                  fontSize: 12.5, fontWeight: 700, color: isWon ? theme.won : theme.textSecondary, flex: 1,
-                  letterSpacing: 0.4, textTransform: 'uppercase',
-                }}>{stage.name}</span>
-                <span style={{ fontSize: 11, color: theme.textMuted }}>{stageCards.length}</span>
+                {editingStageId === stage.id ? (
+                  <input
+                    autoFocus
+                    value={editingStageName}
+                    onChange={e => setEditingStageName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { onRenameStage(stage.id, editingStageName); setEditingStageId(null); }
+                      if (e.key === 'Escape') setEditingStageId(null);
+                    }}
+                    onBlur={() => { onRenameStage(stage.id, editingStageName); setEditingStageId(null); }}
+                    style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: theme.textPrimary, background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 6, padding: '2px 6px' }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => { if (!isViewer) { setEditingStageId(stage.id); setEditingStageName(stage.name); } }}
+                    title={!isViewer ? 'Clique para renomear' : undefined}
+                    style={{
+                      fontSize: 12.5, fontWeight: 700, color: isWon ? theme.won : theme.textSecondary, flex: 1,
+                      letterSpacing: 0.4, textTransform: 'uppercase', cursor: isViewer ? 'default' : 'text',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{stage.name}</span>
+                )}
+                <span style={{ fontSize: 11, color: theme.textMuted, flexShrink: 0 }}>{stageCards.length}</span>
+                {!isViewer && editingStageId !== stage.id && (
+                  <button
+                    onClick={() => onDeleteStage(stage.id)}
+                    title="Apagar etapa"
+                    style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0 }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
               </div>
               {isWon && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
@@ -752,6 +824,35 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
             </div>
           );
         })}
+        {!isViewer && (
+          <div style={{ minWidth: 180, flexShrink: 0, display: 'flex', alignItems: 'flex-start', paddingTop: 4 }}>
+            {showAddStage ? (
+              <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                <input
+                  autoFocus
+                  value={newStageName}
+                  onChange={e => setNewStageName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }
+                    if (e.key === 'Escape') { setShowAddStage(false); setNewStageName(''); }
+                  }}
+                  placeholder="Nome da etapa"
+                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 9, padding: '9px 10px', color: theme.textPrimary, fontSize: 13 }}
+                />
+                <button onClick={() => { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>
+                  <Check size={14} />
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setShowAddStage(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1.5px dashed ${theme.border}`,
+                color: theme.textMuted, borderRadius: 12, padding: '11px 14px', fontSize: 12.5, cursor: 'pointer', width: '100%',
+              }}>
+                <Plus size={14} /> Nova etapa
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {showCardModal && (
