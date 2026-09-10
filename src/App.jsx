@@ -24,6 +24,7 @@ export default function App() {
   const [origins, setOrigins] = useState([]);
   const [lossReasons, setLossReasons] = useState([]);
   const [responsibles, setResponsibles] = useState([]);
+  const [funnelAccess, setFunnelAccess] = useState([]);
   const [tab, setTab] = useState('funis');
   const [activeFunnelId, setActiveFunnelId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -59,6 +60,8 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'origins' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'loss_reasons' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'responsibles' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnel_access' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnel_access' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invites' }, loadAll)
       .subscribe();
@@ -67,13 +70,14 @@ export default function App() {
   }, [session]);
 
   async function loadAll() {
-    const [{ data: f }, { data: s }, { data: c }, { data: o }, { data: lr }, { data: rs }, { data: p }, { data: inv }] = await Promise.all([
+    const [{ data: f }, { data: s }, { data: c }, { data: o }, { data: lr }, { data: rs }, { data: fa }, { data: p }, { data: inv }] = await Promise.all([
       supabase.from('funnels').select('*').order('created_at'),
       supabase.from('stages').select('*').order('position'),
       supabase.from('cards').select('*').order('created_at', { ascending: false }),
       supabase.from('origins').select('*').order('name'),
       supabase.from('loss_reasons').select('*').order('name'),
       supabase.from('responsibles').select('*').order('name'),
+      supabase.from('funnel_access').select('*'),
       supabase.from('profiles').select('*').order('created_at'),
       supabase.from('invites').select('*').order('created_at', { ascending: false }),
     ]);
@@ -83,6 +87,7 @@ export default function App() {
     setOrigins(o || []);
     setLossReasons(lr || []);
     setResponsibles(rs || []);
+    setFunnelAccess(fa || []);
     setProfiles(p || []);
     setInvites(inv || []);
     setActiveFunnelId(prev => prev || (f && f[0]?.id) || null);
@@ -293,6 +298,25 @@ export default function App() {
     showToast('Acesso removido.');
   }
 
+  async function grantFunnelAccess(profileId, funnelId) {
+    const tempId = 'temp-' + Date.now();
+    setFunnelAccess(prev => [...prev, { id: tempId, profile_id: profileId, funnel_id: funnelId }]);
+    const { data, error } = await supabase.from('funnel_access').insert({ profile_id: profileId, funnel_id: funnelId }).select().single();
+    if (error) {
+      setFunnelAccess(prev => prev.filter(a => a.id !== tempId));
+      showToast('Erro ao liberar acesso: ' + error.message, 'error');
+      return;
+    }
+    setFunnelAccess(prev => prev.map(a => (a.id === tempId ? data : a)));
+  }
+
+  async function revokeFunnelAccess(profileId, funnelId) {
+    const prev = funnelAccess;
+    setFunnelAccess(fa => fa.filter(a => !(a.profile_id === profileId && a.funnel_id === funnelId)));
+    const { error } = await supabase.from('funnel_access').delete().eq('profile_id', profileId).eq('funnel_id', funnelId);
+    if (error) { setFunnelAccess(prev); showToast('Erro ao remover acesso: ' + error.message, 'error'); }
+  }
+
   if (recoveryMode) return <Shell><NewPasswordScreen onDone={() => setRecoveryMode(false)} /></Shell>;
   if (session === undefined) return <Shell><Centered>Carregando...</Centered></Shell>;
   if (!session) return <Shell><AuthScreen /></Shell>;
@@ -361,6 +385,10 @@ export default function App() {
             invites={invites}
             isCreator={isCreator}
             currentUserId={session.user.id}
+            funnels={funnels}
+            funnelAccess={funnelAccess}
+            onGrantFunnelAccess={grantFunnelAccess}
+            onRevokeFunnelAccess={revokeFunnelAccess}
             onCreateInvite={createInvite}
             onDeleteInvite={deleteInvite}
             onRemoveAccess={removeAccess}
@@ -1344,7 +1372,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
 const ROLE_LABEL = { creator: 'Creator', member: 'Membro', viewer: 'Visualização' };
 const ROLE_COLOR_KEY = { creator: 'accent', member: 'won', viewer: 'textMuted' };
 
-function SettingsTab({ profiles, invites, isCreator, currentUserId, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
+function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, funnelAccess, onGrantFunnelAccess, onRevokeFunnelAccess, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
   const { theme } = useTheme();
   const [newRole, setNewRole] = useState('member');
   const pendingInvites = invites.filter(i => !i.used_at);
@@ -1358,22 +1386,58 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, onCreateInvi
     navigator.clipboard.writeText(inviteUrl(token)).then(() => showToast('Link copiado.'));
   }
 
+  function hasAccess(profileId, funnelId) {
+    return funnelAccess.some(a => a.profile_id === profileId && a.funnel_id === funnelId);
+  }
+
+  function toggleAccess(profileId, funnelId) {
+    if (hasAccess(profileId, funnelId)) onRevokeFunnelAccess(profileId, funnelId);
+    else onGrantFunnelAccess(profileId, funnelId);
+  }
+
   return (
     <div>
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 13, fontWeight: 650, color: theme.textPrimary, marginBottom: 12 }}>Quem tem acesso</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {profiles.map(p => (
-            <div key={p.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '11px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
-                  {ROLE_LABEL[p.role] || p.role}
-                </span>
-                {isCreator && p.id !== currentUserId && (
-                  <ConfirmDeleteButton onConfirm={() => onRemoveAccess(p.id)} size={13} />
-                )}
+            <div key={p.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '11px 15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
+                    {ROLE_LABEL[p.role] || p.role}
+                  </span>
+                  {isCreator && p.id !== currentUserId && (
+                    <ConfirmDeleteButton onConfirm={() => onRemoveAccess(p.id)} size={13} />
+                  )}
+                </div>
               </div>
+              {isCreator && p.role !== 'creator' && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${theme.border}` }}>
+                  {funnels.map(f => {
+                    const active = hasAccess(p.id, f.id);
+                    return (
+                      <span
+                        key={f.id}
+                        onClick={() => toggleAccess(p.id, f.id)}
+                        style={{
+                          fontSize: 11.5, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
+                          background: active ? theme.accentSoft : theme.surfaceAlt,
+                          color: active ? theme.accent : theme.textMuted,
+                          border: `1px solid ${active ? theme.accent + '60' : theme.border}`,
+                          fontWeight: active ? 650 : 500,
+                        }}
+                      >
+                        {f.name}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {p.role === 'creator' && (
+                <p style={{ fontSize: 11, color: theme.textMuted, margin: '8px 0 0' }}>Creator sempre vê todos os funis.</p>
+              )}
             </div>
           ))}
         </div>
