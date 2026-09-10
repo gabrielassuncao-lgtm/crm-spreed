@@ -80,3 +80,29 @@ export function useTheme() {
   if (!ctx) throw new Error('useTheme must be used inside ThemeProvider');
   return ctx;
 }
+
+const ValuesVisibilityContext = createContext(null);
+
+export function ValuesVisibilityProvider({ children }) {
+  const [hidden, setHidden] = useState(() => {
+    try { return localStorage.getItem('crm-hide-values') === '1'; } catch (e) { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('crm-hide-values', hidden ? '1' : '0'); } catch (e) {}
+  }, [hidden]);
+
+  const toggleHidden = () => setHidden(h => !h);
+
+  return (
+    <ValuesVisibilityContext.Provider value={{ hidden, toggleHidden }}>
+      {children}
+    </ValuesVisibilityContext.Provider>
+  );
+}
+
+export function useValuesVisibility() {
+  const ctx = useContext(ValuesVisibilityContext);
+  if (!ctx) throw new Error('useValuesVisibility must be used inside ValuesVisibilityProvider');
+  return ctx;
+}

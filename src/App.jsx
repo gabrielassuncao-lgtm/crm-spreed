@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
-  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, Pencil, Check
+  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, EyeOff, Pencil, Check
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
-import { useTheme } from './theme.jsx';
+import { useTheme, useValuesVisibility } from './theme.jsx';
 import {
   STAGE_PALETTE, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, PLAN_OPTIONS, DURATION_OPTIONS,
   fmtMoney, toNumericOrNull, normalize, fmtDate, fmtElapsed, FONT, FONT_LOGO,
@@ -330,6 +330,7 @@ function Toast({ toast }) {
 /* ---------- TOP BAR ---------- */
 function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, onManageReasons, isViewer }) {
   const { theme } = useTheme();
+  const { hidden, toggleHidden } = useValuesVisibility();
   const tabs = [
     { id: 'funis', label: 'Funis', icon: GitBranch },
     { id: 'leads', label: 'Leads/Clientes', icon: Users },
@@ -364,6 +365,12 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
               </button>
             </>
           )}
+          <button onClick={toggleHidden} title={hidden ? 'Mostrar valores' : 'Ocultar valores'} style={{
+            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: hidden ? theme.accent : theme.textSecondary, cursor: 'pointer',
+          }}>
+            {hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
           <button onClick={toggle} title="Mudar tema" style={{
             background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textSecondary, cursor: 'pointer',
@@ -484,6 +491,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
 
 function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages, isViewer }) {
   const { theme } = useTheme();
+  const { hidden: valuesHidden } = useValuesVisibility();
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [targetStageId, setTargetStageId] = useState(funnel.stages[0]?.id);
@@ -696,7 +704,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                   <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} compact />
                   <ConversionBar label="Reunião realizada" value={conversionMeeting} color={theme.won} theme={theme} compact />
                   <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
-                    Total: {fmtMoney(wonTotal)}
+                    Total: {valuesHidden ? '••••••' : fmtMoney(wonTotal)}
                   </div>
                 </div>
               )}
@@ -722,7 +730,7 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
                     {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.accent, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
                     {isLost && card.loss_reason && <div style={{ fontSize: 10.5, color: theme.lost, marginTop: 3, fontStyle: 'italic' }}>{card.loss_reason}</div>}
-                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{fmtMoney(card.value)}</div>}
+                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
                     {!isLost && isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
                       <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
@@ -1054,6 +1062,7 @@ function LeadsTab({ funnels, cards, origins }) {
 /* ---------- RELATORIOS TAB ---------- */
 function RelatoriosTab({ funnels, cards: allCards, origins }) {
   const { theme } = useTheme();
+  const { hidden: valuesHidden } = useValuesVisibility();
   const [filterResponsible, setFilterResponsible] = useState('all');
   const [filterOrigin, setFilterOrigin] = useState('all');
 
@@ -1103,7 +1112,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
         <StatCard icon={<Users size={15} />} label="Total de leads" value={total} />
         <StatCard icon={<TrendingUp size={15} />} label="Conversão total" value={conversionTotal + '%'} />
         <StatCard icon={<TrendingUp size={15} />} label="Conversão (reunião realizada)" value={conversionMeeting != null ? conversionMeeting + '%' : '—'} />
-        <StatCard icon={<DollarSign size={15} />} label="Valor ganho" value={fmtMoney(totalValue)} color={theme.won} />
+        <StatCard icon={<DollarSign size={15} />} label="Valor ganho" value={valuesHidden ? '••••••' : fmtMoney(totalValue)} color={theme.won} />
         <StatCard icon={<X size={15} />} label="Perdidos" value={lost.length} color={theme.lost} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
