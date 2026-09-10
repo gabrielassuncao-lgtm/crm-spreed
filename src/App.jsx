@@ -310,6 +310,13 @@ export default function App() {
     showToast('Papel atualizado.');
   }
 
+  async function toggleReportsAccess(profileId, canView) {
+    const prev = profiles;
+    setProfiles(ps => ps.map(p => (p.id === profileId ? { ...p, can_view_reports: canView } : p)));
+    const { error } = await supabase.from('profiles').update({ can_view_reports: canView }).eq('id', profileId);
+    if (error) { setProfiles(prev); showToast('Erro ao atualizar acesso a relatórios: ' + error.message, 'error'); }
+  }
+
   async function grantFunnelAccess(profileId, funnelId) {
     const tempId = 'temp-' + Date.now();
     setFunnelAccess(prev => [...prev, { id: tempId, profile_id: profileId, funnel_id: funnelId }]);
@@ -358,10 +365,11 @@ export default function App() {
   const myRole = profile.role;
   const isViewer = myRole === 'viewer';
   const isCreator = myRole === 'creator';
+  const canViewReports = isCreator || !!profile.can_view_reports;
 
   return (
     <Shell>
-      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} isViewer={isViewer} />
+      <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} isViewer={isViewer} canViewReports={canViewReports} />
       {toast && <Toast toast={toast} />}
       <div style={{ padding: '18px 22px 36px' }}>
         {tab === 'funis' && (
@@ -390,7 +398,15 @@ export default function App() {
           />
         )}
         {tab === 'leads' && <LeadsTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
-        {tab === 'relatorios' && <RelatoriosTab funnels={funnelsWithStages} cards={cards} origins={originNames} />}
+        {tab === 'relatorios' && (
+          canViewReports ? (
+            <RelatoriosTab funnels={funnelsWithStages} cards={cards} origins={originNames} />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
+              Você não tem acesso aos relatórios. Peça pro Creator liberar em Configurações.
+            </div>
+          )
+        )}
         {tab === 'config' && (
           <SettingsTab
             profiles={profiles}
@@ -402,6 +418,7 @@ export default function App() {
             onGrantFunnelAccess={grantFunnelAccess}
             onRevokeFunnelAccess={revokeFunnelAccess}
             onChangeRole={changeRole}
+            onToggleReportsAccess={toggleReportsAccess}
             onCreateInvite={createInvite}
             onDeleteInvite={deleteInvite}
             onRemoveAccess={removeAccess}
@@ -448,13 +465,13 @@ function Toast({ toast }) {
 }
 
 /* ---------- TOP BAR ---------- */
-function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, onManageReasons, isViewer }) {
+function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, onManageReasons, isViewer, canViewReports }) {
   const { theme } = useTheme();
   const { hidden, toggleHidden } = useValuesVisibility();
   const tabs = [
     { id: 'funis', label: 'Funis', icon: GitBranch },
     { id: 'leads', label: 'Leads/Clientes', icon: Users },
-    { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+    ...(canViewReports ? [{ id: 'relatorios', label: 'Relatórios', icon: BarChart3 }] : []),
     { id: 'config', label: 'Configurações', icon: Shield },
   ];
   return (
@@ -1014,6 +1031,67 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
   );
 }
 
+function MultiSelectFilter({ icon, selected, onChange, options, placeholder, getLabel, getKey }) {
+  const { theme } = useTheme();
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  getLabel = getLabel || (o => o);
+  getKey = getKey || (o => o);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  function toggle(key) {
+    if (selected.includes(key)) onChange(selected.filter(k => k !== key));
+    else onChange([...selected, key]);
+  }
+
+  const label = selected.length === 0 ? placeholder : selected.length === 1 ? getLabel(options.find(o => getKey(o) === selected[0])) || placeholder : `${selected.length} selecionados`;
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${selected.length ? theme.accent + '60' : theme.border}`, borderRadius: 9, padding: '6px 11px', cursor: 'pointer' }}
+      >
+        {icon}
+        <span style={{ color: selected.length ? theme.accent : theme.textSecondary, fontSize: 12, fontWeight: selected.length ? 650 : 400 }}>{label}</span>
+      </div>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '110%', left: 0, zIndex: 50, minWidth: 200, maxHeight: 260, overflowY: 'auto',
+          background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, boxShadow: theme.shadow, padding: 6,
+        }}>
+          {selected.length > 0 && (
+            <div onClick={() => onChange([])} style={{ fontSize: 11.5, color: theme.accent, cursor: 'pointer', fontWeight: 600, padding: '6px 8px' }}>
+              Limpar seleção
+            </div>
+          )}
+          {options.length === 0 ? (
+            <div style={{ fontSize: 12, color: theme.textMuted, padding: '6px 8px' }}>Nenhuma opção.</div>
+          ) : (
+            options.map(o => {
+              const key = getKey(o);
+              const checked = selected.includes(key);
+              return (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: theme.textPrimary, padding: '6px 8px', cursor: 'pointer', borderRadius: 6 }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(key)} />
+                  {getLabel(o)}
+                </label>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onAddResponsible, cardFields, targetStageId, setTargetStageId, isWonStage, wonFields, onSave, onClose, onMarkLost, onRestore, onDelete }) {
   const { theme } = useTheme();
   const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
@@ -1213,8 +1291,8 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
 function LeadsTab({ funnels, cards, origins }) {
   const { theme } = useTheme();
   const [search, setSearch] = useState('');
-  const [filterOrigin, setFilterOrigin] = useState('all');
-  const [filterFunnel, setFilterFunnel] = useState('all');
+  const [filterOrigins, setFilterOrigins] = useState([]);
+  const [filterFunnels, setFilterFunnels] = useState([]);
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
 
@@ -1227,8 +1305,8 @@ function LeadsTab({ funnels, cards, origins }) {
 
   let filtered = cards.filter(c =>
     ((c.name || '') + (c.email || '') + (c.phone || '') + (c.origin || '') + (c.responsible || '')).toLowerCase().includes(search.toLowerCase()) &&
-    (filterOrigin === 'all' || c.origin === filterOrigin) &&
-    (filterFunnel === 'all' || c.funnel_id === filterFunnel) &&
+    (filterOrigins.length === 0 || filterOrigins.includes(c.origin)) &&
+    (filterFunnels.length === 0 || filterFunnels.includes(c.funnel_id)) &&
     (filterStatus === 'all' || (filterStatus === 'lost' ? c.status === 'lost' : c.status !== 'lost'))
   );
   if (sortBy === 'name') filtered = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -1246,14 +1324,8 @@ function LeadsTab({ funnels, cards, origins }) {
           <Filter size={13} color={theme.textMuted} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13, width: '100%' }} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
-          <GitBranch size={12} color={theme.textMuted} />
-          <select value={filterFunnel} onChange={e => setFilterFunnel(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
-            <option value="all">Todos os funis</option>
-            {funnels.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </div>
-        <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+        <MultiSelectFilter icon={<GitBranch size={12} color={theme.textMuted} />} selected={filterFunnels} onChange={setFilterFunnels} options={funnels} getKey={f => f.id} getLabel={f => f.name} placeholder="Todos os funis" />
+        <MultiSelectFilter icon={<Tag size={12} color={theme.textMuted} />} selected={filterOrigins} onChange={setFilterOrigins} options={origins} getKey={o => o} getLabel={o => o} placeholder="Todas as origens" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Status:</span>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
@@ -1321,13 +1393,16 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
   const { hidden: valuesHidden } = useValuesVisibility();
   const [filterResponsible, setFilterResponsible] = useState('all');
   const [filterOrigin, setFilterOrigin] = useState('all');
+  const [filterFunnel, setFilterFunnel] = useState('all');
 
   const responsibleNames = [...new Set(allCards.map(c => c.responsible).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
+  const relevantFunnels = filterFunnel === 'all' ? funnels : funnels.filter(f => f.id === filterFunnel);
 
   const cards = allCards.filter(c =>
     (filterResponsible === 'all' || c.responsible === filterResponsible) &&
-    (filterOrigin === 'all' || c.origin === filterOrigin)
+    (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterFunnel === 'all' || c.funnel_id === filterFunnel)
   );
 
   const total = cards.length;
@@ -1344,7 +1419,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
   // contando também quem foi perdido depois de chegar lá — quantos foram ganhos.
   let meetingReached = 0;
   let meetingWon = 0;
-  funnels.forEach(f => {
+  relevantFunnels.forEach(f => {
     const meetingStage = f.stages.find(s => normalize(s.name).includes('reuniao realizada') || (normalize(s.name).includes('reuniao') && normalize(s.name).includes('realizada')));
     const wonStage = f.stages[f.stages.length - 1];
     if (!meetingStage || !wonStage) return;
@@ -1363,6 +1438,13 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+          <GitBranch size={12} color={theme.textMuted} />
+          <select value={filterFunnel} onChange={e => setFilterFunnel(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+            <option value="all">Todos os funis</option>
+            {funnels.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibleNames} placeholder="Todos os responsáveis" />
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
       </div>
@@ -1385,7 +1467,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
 const ROLE_LABEL = { creator: 'Creator', member: 'Membro', viewer: 'Visualização' };
 const ROLE_COLOR_KEY = { creator: 'accent', member: 'won', viewer: 'textMuted' };
 
-function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, funnelAccess, onGrantFunnelAccess, onRevokeFunnelAccess, onChangeRole, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
+function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, funnelAccess, onGrantFunnelAccess, onRevokeFunnelAccess, onChangeRole, onToggleReportsAccess, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
   const { theme } = useTheme();
   const [newRole, setNewRole] = useState('member');
   const pendingInvites = invites.filter(i => !i.used_at);
@@ -1461,10 +1543,23 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                       </span>
                     );
                   })}
+                  <span
+                    onClick={() => onToggleReportsAccess(p.id, !p.can_view_reports)}
+                    style={{
+                      fontSize: 11.5, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
+                      background: p.can_view_reports ? theme.wonSoft : theme.surfaceAlt,
+                      color: p.can_view_reports ? theme.won : theme.textMuted,
+                      border: `1px solid ${p.can_view_reports ? theme.won + '60' : theme.border}`,
+                      fontWeight: p.can_view_reports ? 650 : 500,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    <BarChart3 size={11} /> Relatórios
+                  </span>
                 </div>
               )}
               {p.role === 'creator' && (
-                <p style={{ fontSize: 11, color: theme.textMuted, margin: '8px 0 0' }}>Creator sempre vê todos os funis.</p>
+                <p style={{ fontSize: 11, color: theme.textMuted, margin: '8px 0 0' }}>Creator sempre vê todos os funis e relatórios.</p>
               )}
             </div>
           ))}
