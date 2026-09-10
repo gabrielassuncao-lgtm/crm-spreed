@@ -298,6 +298,18 @@ export default function App() {
     showToast('Acesso removido.');
   }
 
+  async function changeRole(profileId, newRole) {
+    if (profileId === session.user.id) {
+      showToast('Você não pode mudar seu próprio papel.', 'error');
+      return;
+    }
+    const prev = profiles;
+    setProfiles(ps => ps.map(p => (p.id === profileId ? { ...p, role: newRole } : p)));
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', profileId);
+    if (error) { setProfiles(prev); showToast('Erro ao mudar papel: ' + error.message, 'error'); return; }
+    showToast('Papel atualizado.');
+  }
+
   async function grantFunnelAccess(profileId, funnelId) {
     const tempId = 'temp-' + Date.now();
     setFunnelAccess(prev => [...prev, { id: tempId, profile_id: profileId, funnel_id: funnelId }]);
@@ -389,6 +401,7 @@ export default function App() {
             funnelAccess={funnelAccess}
             onGrantFunnelAccess={grantFunnelAccess}
             onRevokeFunnelAccess={revokeFunnelAccess}
+            onChangeRole={changeRole}
             onCreateInvite={createInvite}
             onDeleteInvite={deleteInvite}
             onRemoveAccess={removeAccess}
@@ -1372,7 +1385,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
 const ROLE_LABEL = { creator: 'Creator', member: 'Membro', viewer: 'Visualização' };
 const ROLE_COLOR_KEY = { creator: 'accent', member: 'won', viewer: 'textMuted' };
 
-function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, funnelAccess, onGrantFunnelAccess, onRevokeFunnelAccess, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
+function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, funnelAccess, onGrantFunnelAccess, onRevokeFunnelAccess, onChangeRole, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
   const { theme } = useTheme();
   const [newRole, setNewRole] = useState('member');
   const pendingInvites = invites.filter(i => !i.used_at);
@@ -1405,9 +1418,24 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
-                    {ROLE_LABEL[p.role] || p.role}
-                  </span>
+                  {isCreator && p.role !== 'creator' ? (
+                    <select
+                      value={p.role}
+                      onChange={e => onChangeRole(p.id, e.target.value)}
+                      style={{
+                        fontSize: 11.5, fontWeight: 650, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
+                        background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]],
+                        border: 'none', outline: 'none',
+                      }}
+                    >
+                      <option value="member">Membro (edição)</option>
+                      <option value="viewer">Visualização</option>
+                    </select>
+                  ) : (
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
+                      {ROLE_LABEL[p.role] || p.role}
+                    </span>
+                  )}
                   {isCreator && p.id !== currentUserId && (
                     <ConfirmDeleteButton onConfirm={() => onRemoveAccess(p.id)} size={13} />
                   )}
