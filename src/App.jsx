@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
-  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, EyeOff, Pencil, Check
+  GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, EyeOff, Pencil, Check, History
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
@@ -377,6 +377,7 @@ export default function App() {
             funnels={funnelsWithStages}
             cards={cards}
             origins={originNames}
+            currentUserEmail={session.user.email}
             onAddOrigin={addOrigin}
             reasons={reasonNames}
             onAddReason={addLossReason}
@@ -542,7 +543,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
 }
 
 /* ---------- FUNIS TAB ---------- */
-function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, onUpdateCardFields, responsibles, onAddResponsible, onDeleteResponsible, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages, onRenameStage, onAddStage, onDeleteStage, isViewer }) {
+function FunisTab({ funnels, cards, origins, currentUserEmail, onAddOrigin, reasons, onAddReason, onUpdateWonFields, onUpdateCardFields, responsibles, onAddResponsible, onDeleteResponsible, activeFunnelId, setActiveFunnelId, showToast, reload, updateCardLocal, reorderStages, onRenameStage, onAddStage, onDeleteStage, isViewer }) {
   const { theme } = useTheme();
   const [showNewFunnel, setShowNewFunnel] = useState(false);
   const [newFunnelName, setNewFunnelName] = useState('');
@@ -605,7 +606,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
       </div>
 
       {activeFunnel ? (
-        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} onUpdateCardFields={onUpdateCardFields} responsibles={responsibles} onAddResponsible={onAddResponsible} onDeleteResponsible={onDeleteResponsible} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} onRenameStage={onRenameStage} onAddStage={onAddStage} onDeleteStage={onDeleteStage} isViewer={isViewer} />
+        <FunnelBoard funnel={activeFunnel} allCards={cards} origins={origins} currentUserEmail={currentUserEmail} onAddOrigin={onAddOrigin} reasons={reasons} onAddReason={onAddReason} onUpdateWonFields={onUpdateWonFields} onUpdateCardFields={onUpdateCardFields} responsibles={responsibles} onAddResponsible={onAddResponsible} onDeleteResponsible={onDeleteResponsible} reload={reload} onDeleteFunnel={() => deleteFunnel(activeFunnel.id)} showToast={showToast} updateCardLocal={updateCardLocal} reorderStages={reorderStages} onRenameStage={onRenameStage} onAddStage={onAddStage} onDeleteStage={onDeleteStage} isViewer={isViewer} />
       ) : (
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>
           Nenhum funil ainda. Crie o primeiro para começar.
@@ -626,7 +627,7 @@ function FunisTab({ funnels, cards, origins, onAddOrigin, reasons, onAddReason, 
   );
 }
 
-function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddReason, onUpdateWonFields, onUpdateCardFields, responsibles: allResponsibles, onAddResponsible, onDeleteResponsible, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages, onRenameStage, onAddStage, onDeleteStage, isViewer }) {
+function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin, reasons, onAddReason, onUpdateWonFields, onUpdateCardFields, responsibles: allResponsibles, onAddResponsible, onDeleteResponsible, reload, onDeleteFunnel, showToast, updateCardLocal, reorderStages, onRenameStage, onAddStage, onDeleteStage, isViewer }) {
   const { theme } = useTheme();
   const { hidden: valuesHidden } = useValuesVisibility();
   const [editingStageId, setEditingStageId] = useState(null);
@@ -716,11 +717,20 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
       funnel_id: funnel.id,
     };
     if (stageChanged) payload.stage_changed_at = new Date().toISOString();
-    let error;
+    const toStageName = funnel.stages.find(s => s.id === targetStageId)?.name || null;
+    let error, cardId;
     if (editingCard) {
+      cardId = editingCard.id;
       ({ error } = await supabase.from('cards').update(payload).eq('id', editingCard.id));
+      if (!error && stageChanged) {
+        const fromStageName = funnel.stages.find(s => s.id === editingCard.stage_id)?.name || null;
+        logHistory(cardId, 'moved', { fromStage: fromStageName, toStage: toStageName });
+      }
     } else {
-      ({ error } = await supabase.from('cards').insert({ ...payload, status: 'active', stage_changed_at: new Date().toISOString() }));
+      const { data: inserted, error: insErr } = await supabase.from('cards').insert({ ...payload, status: 'active', stage_changed_at: new Date().toISOString() }).select().single();
+      error = insErr;
+      cardId = inserted?.id;
+      if (!error && cardId) logHistory(cardId, 'created', { toStage: toStageName });
     }
     if (error) { showToast('Não salvou: ' + error.message, 'error'); return; }
     await reload();
@@ -728,9 +738,24 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
     showToast('Salvo.');
   }
 
+  function logHistory(cardId, eventType, { fromStage, toStage, note } = {}) {
+    supabase.from('card_history').insert({
+      card_id: cardId,
+      event_type: eventType,
+      from_stage_name: fromStage || null,
+      to_stage_name: toStage || null,
+      note: note || null,
+      actor_email: currentUserEmail || null,
+    }).then(({ error }) => {
+      if (error) console.error('Erro ao salvar histórico:', error.message);
+    });
+  }
+
   async function markLost(cardId, reason) {
     const { error } = await supabase.from('cards').update({ status: 'lost', loss_reason: reason || null }).eq('id', cardId);
     if (error) { showToast('Erro: ' + error.message, 'error'); return; }
+    const stageName = funnel.stages.find(s => s.id === editingCard?.stage_id)?.name || null;
+    logHistory(cardId, 'lost', { toStage: stageName, note: reason || null });
     await reload();
     setShowCardModal(false);
     setShowLostPrompt(false);
@@ -739,6 +764,8 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
   async function restoreCard(cardId) {
     const { error } = await supabase.from('cards').update({ status: 'active' }).eq('id', cardId);
     if (error) { showToast('Erro: ' + error.message, 'error'); return; }
+    const stageName = funnel.stages.find(s => s.id === editingCard?.stage_id)?.name || null;
+    logHistory(cardId, 'restored', { toStage: stageName });
     await reload();
     showToast('Card restaurado ao pipeline.');
   }
@@ -753,11 +780,15 @@ function FunnelBoard({ funnel, allCards, origins, onAddOrigin, reasons, onAddRea
     setDragOverStageId(null);
     if (!dragCardId) return;
     const id = dragCardId;
+    const draggedCard = allCards.find(c => c.id === id);
+    const fromStageName = draggedCard ? (funnel.stages.find(s => s.id === draggedCard.stage_id)?.name || null) : null;
+    const toStageName = funnel.stages.find(s => s.id === stageId)?.name || null;
     setDragCardId(null);
     const now = new Date().toISOString();
     updateCardLocal(id, { stage_id: stageId, status: 'active', stage_changed_at: now });
     supabase.from('cards').update({ stage_id: stageId, status: 'active', stage_changed_at: now }).eq('id', id).then(({ error }) => {
-      if (error) showToast('Erro ao mover: ' + error.message, 'error');
+      if (error) { showToast('Erro ao mover: ' + error.message, 'error'); return; }
+      logHistory(id, 'moved', { fromStage: fromStageName, toStage: toStageName });
     });
   }
 
@@ -1110,6 +1141,7 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
   const [addingOrigin, setAddingOrigin] = useState(false);
   const [addingResponsible, setAddingResponsible] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [newOrigin, setNewOrigin] = useState('');
   const [newResponsible, setNewResponsible] = useState('');
 
@@ -1278,9 +1310,70 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
       )}
 
       {card && (
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ fontSize: 11, color: theme.textMuted }}>Cadastrado em {fmtDate(card.created_at)}</div>
-          <div style={{ fontSize: 11, color: theme.textMuted }}>Última movimentação de etapa: {fmtDate(card.stage_changed_at || card.created_at)}</div>
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 11, color: theme.textMuted }}>Cadastrado em {fmtDate(card.created_at)}</div>
+            <div style={{ fontSize: 11, color: theme.textMuted }}>Última movimentação de etapa: {fmtDate(card.stage_changed_at || card.created_at)}</div>
+          </div>
+          <button
+            onClick={() => setShowHistory(true)}
+            title="Ver histórico de movimentações"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${theme.border}`,
+              color: theme.textMuted, borderRadius: 999, padding: '5px 10px', fontSize: 10.5, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <History size={11} /> Histórico
+          </button>
+        </div>
+      )}
+
+      {showHistory && (
+        <HistoryModal cardId={card.id} onClose={() => setShowHistory(false)} />
+      )}
+    </Modal>
+  );
+}
+
+function HistoryModal({ cardId, onClose }) {
+  const { theme } = useTheme();
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    supabase.from('card_history').select('*').eq('card_id', cardId).order('created_at', { ascending: false }).then(({ data, error: err }) => {
+      if (err) { setError(err.message); return; }
+      setItems(data || []);
+    });
+  }, [cardId]);
+
+  const EVENT_LABEL = { created: 'Lead criado', moved: 'Movido de etapa', lost: 'Marcado como perdido', restored: 'Restaurado ao pipeline' };
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 16px', color: theme.textPrimary }}>Histórico de movimentações</h2>
+      {error && <div style={{ fontSize: 12.5, color: theme.lost }}>{error}</div>}
+      {items === null && !error && <div style={{ fontSize: 12.5, color: theme.textMuted }}>Carregando...</div>}
+      {items && items.length === 0 && <div style={{ fontSize: 12.5, color: theme.textMuted }}>Nenhum evento registrado ainda para esse card.</div>}
+      {items && items.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 400, overflowY: 'auto' }}>
+          {items.map(ev => (
+            <div key={ev.id} style={{ borderLeft: `2px solid ${theme.border}`, paddingLeft: 12, position: 'relative' }}>
+              <div style={{ fontSize: 13, color: theme.textPrimary, fontWeight: 600 }}>
+                {EVENT_LABEL[ev.event_type] || ev.event_type}
+                {ev.event_type === 'moved' && ev.from_stage_name && ev.to_stage_name && (
+                  <span style={{ fontWeight: 400, color: theme.textSecondary }}> — {ev.from_stage_name} → {ev.to_stage_name}</span>
+                )}
+                {ev.event_type === 'created' && ev.to_stage_name && (
+                  <span style={{ fontWeight: 400, color: theme.textSecondary }}> — em {ev.to_stage_name}</span>
+                )}
+              </div>
+              {ev.note && <div style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>Motivo: {ev.note}</div>}
+              <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 3 }}>
+                {ev.actor_email || 'Usuário desconhecido'} · {fmtDate(ev.created_at)}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </Modal>
