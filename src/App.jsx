@@ -272,8 +272,8 @@ export default function App() {
     if (error) { setResponsibles(prev); showToast('Erro ao remover responsável: ' + error.message, 'error'); }
   }
 
-  async function createInvite(role, funnelIds) {
-    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id, funnel_ids: funnelIds || [] }).select().single();
+  async function createInvite(role, funnelIds, reusable) {
+    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id, funnel_ids: funnelIds || [], reusable: !!reusable }).select().single();
     if (error) { showToast('Erro ao gerar convite: ' + error.message, 'error'); return; }
     setInvites(prev => [data, ...prev]);
     showToast('Link de convite criado.');
@@ -1564,17 +1564,10 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
   const { theme } = useTheme();
   const [newRole, setNewRole] = useState('member');
   const [newFunnelIds, setNewFunnelIds] = useState([]);
-  const pendingInvites = invites.filter(i => !i.used_at);
-  const usedInvites = invites.filter(i => i.used_at);
-
-  function toggleNewFunnel(id) {
-    setNewFunnelIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
-  }
-
-  function submitInvite() {
-    onCreateInvite(newRole, newFunnelIds);
-    setNewFunnelIds([]);
-  }
+  const [newReusable, setNewReusable] = useState(false);
+  const reusableInvites = invites.filter(i => i.reusable);
+  const pendingInvites = invites.filter(i => !i.reusable && !i.used_at);
+  const usedInvites = invites.filter(i => !i.reusable && i.used_at);
 
   function inviteUrl(token) {
     return `${window.location.origin}${window.location.pathname}?invite=${token}`;
@@ -1586,6 +1579,16 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
 
   function hasAccess(profileId, funnelId) {
     return funnelAccess.some(a => a.profile_id === profileId && a.funnel_id === funnelId);
+  }
+
+  function toggleNewFunnel(id) {
+    setNewFunnelIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  }
+
+  function submitInvite() {
+    onCreateInvite(newRole, newFunnelIds, newReusable);
+    setNewFunnelIds([]);
+    setNewReusable(false);
   }
 
   function toggleAccess(profileId, funnelId) {
@@ -1685,7 +1688,7 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                 <Link2 size={14} /> Gerar link
               </button>
             </div>
-            <div style={{ marginBottom: 4 }}>
+            <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 6 }}>Acesso a quais funis:</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {funnels.map(f => {
@@ -1707,11 +1710,41 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                   );
                 })}
               </div>
-              <p style={{ fontSize: 11, color: theme.textMuted, margin: '8px 0 0', lineHeight: 1.5 }}>
-                Relatórios continua sempre desligado pra convites novos — libere depois em "Quem tem acesso", se quiser.
-              </p>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: theme.textSecondary, cursor: 'pointer', marginBottom: 4 }}>
+              <input type="checkbox" checked={newReusable} onChange={e => setNewReusable(e.target.checked)} />
+              Link permanente — várias pessoas podem usar o mesmo link, sem expirar
+            </label>
+            <p style={{ fontSize: 11, color: theme.textMuted, margin: '4px 0 0', lineHeight: 1.5 }}>
+              Relatórios continua sempre desligado pra convites novos — libere depois em "Quem tem acesso", se quiser.
+            </p>
           </div>
+
+          {reusableInvites.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 8 }}>Links permanentes</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {reusableInvites.map(inv => (
+                  <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.accent}50`, borderRadius: 9, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
+                        {ROLE_LABEL[inv.role]}
+                      </span>
+                      <span style={{ fontSize: 11, color: theme.textMuted }}>
+                        {(inv.funnel_ids || []).length === 0 ? 'sem funil' : funnels.filter(f => (inv.funnel_ids || []).includes(f.id)).map(f => f.name).join(', ')}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        <Copy size={12} /> Copiar link
+                      </button>
+                      <ConfirmDeleteButton onConfirm={() => onDeleteInvite(inv.id)} size={13} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {pendingInvites.length > 0 && (
             <div style={{ marginBottom: 18 }}>

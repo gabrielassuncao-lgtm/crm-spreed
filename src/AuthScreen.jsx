@@ -18,9 +18,10 @@ export default function AuthScreen() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('invite');
     if (!token) { setInvite(null); return; }
-    supabase.from('invites').select('*').eq('token', token).is('used_at', null).maybeSingle().then(({ data }) => {
-      setInvite(data || null);
-      if (data) setMode('register');
+    supabase.from('invites').select('*').eq('token', token).maybeSingle().then(({ data }) => {
+      const valid = data && (data.reusable || !data.used_at);
+      setInvite(valid ? data : null);
+      if (valid) setMode('register');
     });
   }, []);
 
@@ -51,9 +52,11 @@ export default function AuthScreen() {
       if (error) {
         setErr(traduzErro(error.message));
       } else if (data.session) {
-        // Cria o perfil vinculado ao convite e marca o convite como usado
+        // Cria o perfil vinculado ao convite e, se não for um link permanente, marca o convite como usado
         await supabase.from('profiles').insert({ id: data.user.id, email: email.trim(), role: invite.role });
-        await supabase.from('invites').update({ used_by: data.user.id, used_at: new Date().toISOString() }).eq('id', invite.id);
+        if (!invite.reusable) {
+          await supabase.from('invites').update({ used_by: data.user.id, used_at: new Date().toISOString() }).eq('id', invite.id);
+        }
         if (invite.funnel_ids && invite.funnel_ids.length > 0) {
           await supabase.from('funnel_access').insert(
             invite.funnel_ids.map(funnelId => ({ profile_id: data.user.id, funnel_id: funnelId }))
