@@ -272,8 +272,8 @@ export default function App() {
     if (error) { setResponsibles(prev); showToast('Erro ao remover responsável: ' + error.message, 'error'); }
   }
 
-  async function createInvite(role) {
-    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id }).select().single();
+  async function createInvite(role, funnelIds) {
+    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id, funnel_ids: funnelIds || [] }).select().single();
     if (error) { showToast('Erro ao gerar convite: ' + error.message, 'error'); return; }
     setInvites(prev => [data, ...prev]);
     showToast('Link de convite criado.');
@@ -1563,8 +1563,18 @@ const ROLE_COLOR_KEY = { creator: 'accent', member: 'won', viewer: 'textMuted' }
 function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, funnelAccess, onGrantFunnelAccess, onRevokeFunnelAccess, onChangeRole, onToggleReportsAccess, onCreateInvite, onDeleteInvite, onRemoveAccess, showToast }) {
   const { theme } = useTheme();
   const [newRole, setNewRole] = useState('member');
+  const [newFunnelIds, setNewFunnelIds] = useState([]);
   const pendingInvites = invites.filter(i => !i.used_at);
   const usedInvites = invites.filter(i => i.used_at);
+
+  function toggleNewFunnel(id) {
+    setNewFunnelIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  }
+
+  function submitInvite() {
+    onCreateInvite(newRole, newFunnelIds);
+    setNewFunnelIds([]);
+  }
 
   function inviteUrl(token) {
     return `${window.location.origin}${window.location.pathname}?invite=${token}`;
@@ -1666,14 +1676,40 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
             <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 12px', lineHeight: 1.5 }}>
               Gere um link e mande pra pessoa. Só quem tem esse link consegue criar uma conta nova no CRM.
             </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
               <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13 }}>
                 <option value="member">Acesso de edição (Membro)</option>
                 <option value="viewer">Só visualização</option>
               </select>
-              <button onClick={() => onCreateInvite(newRole)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '9px 15px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={submitInvite} style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '9px 15px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 <Link2 size={14} /> Gerar link
               </button>
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 6 }}>Acesso a quais funis:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {funnels.map(f => {
+                  const checked = newFunnelIds.includes(f.id);
+                  return (
+                    <span
+                      key={f.id}
+                      onClick={() => toggleNewFunnel(f.id)}
+                      style={{
+                        fontSize: 11.5, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
+                        background: checked ? theme.accentSoft : theme.surfaceAlt,
+                        color: checked ? theme.accent : theme.textMuted,
+                        border: `1px solid ${checked ? theme.accent + '60' : theme.border}`,
+                        fontWeight: checked ? 650 : 500,
+                      }}
+                    >
+                      {f.name}
+                    </span>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: 11, color: theme.textMuted, margin: '8px 0 0', lineHeight: 1.5 }}>
+                Relatórios continua sempre desligado pra convites novos — libere depois em "Quem tem acesso", se quiser.
+              </p>
             </div>
           </div>
 
@@ -1683,9 +1719,12 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {pendingInvites.map(inv => (
                   <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
                         {ROLE_LABEL[inv.role]}
+                      </span>
+                      <span style={{ fontSize: 11, color: theme.textMuted }}>
+                        {(inv.funnel_ids || []).length === 0 ? 'sem funil' : funnels.filter(f => (inv.funnel_ids || []).includes(f.id)).map(f => f.name).join(', ')}
                       </span>
                       <span style={{ fontSize: 11.5, color: theme.textMuted }}>{fmtDate(inv.created_at)}</span>
                     </div>

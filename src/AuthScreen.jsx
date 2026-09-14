@@ -54,6 +54,11 @@ export default function AuthScreen() {
         // Cria o perfil vinculado ao convite e marca o convite como usado
         await supabase.from('profiles').insert({ id: data.user.id, email: email.trim(), role: invite.role });
         await supabase.from('invites').update({ used_by: data.user.id, used_at: new Date().toISOString() }).eq('id', invite.id);
+        if (invite.funnel_ids && invite.funnel_ids.length > 0) {
+          await supabase.from('funnel_access').insert(
+            invite.funnel_ids.map(funnelId => ({ profile_id: data.user.id, funnel_id: funnelId }))
+          );
+        }
       } else {
         setInfo('Conta criada. Verifique seu e-mail para confirmar antes de entrar.');
       }
