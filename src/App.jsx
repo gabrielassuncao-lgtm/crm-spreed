@@ -385,7 +385,7 @@ export default function App() {
     <Shell>
       <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} isViewer={isViewer} canViewReports={canViewReports} />
       {toast && <Toast toast={toast} />}
-      <div style={{ padding: '14px 26px 40px' }}>
+      <div style={{ padding: tab === 'funis' ? '14px 26px 16px' : '14px 26px 40px' }}>
         {tab === 'funis' && (
           <FunisTab
             funnels={funnelsWithStages}
@@ -646,7 +646,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
       const el = boardRef.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
-      setBoardH(Math.max(380, Math.round(window.innerHeight - top - 48)));
+      setBoardH(Math.max(380, Math.round(window.innerHeight - top - 16)));
     }
     calc();
     const t = setTimeout(calc, 300);
@@ -908,7 +908,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                 border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? hexA(theme.won, 0.55) : theme.border}`,
                 borderRadius: 18, padding: '12px 12px 8px', opacity: isStageDragging ? 0.4 : 1,
                 transition: 'border-color .12s, box-shadow .12s, opacity .12s',
-                boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
+                boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : (theme.mode === 'dark' ? 'inset 0 0 36px rgba(0,0,0,0.38)' : 'none'),
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, padding: '2px 3px 11px', minHeight: 52, borderBottom: `1px solid ${theme.borderStrong}`, position: 'relative', flexShrink: 0 }}>
@@ -982,11 +982,11 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     style={{
                       background: isLost ? theme.lostSoft : (theme.mode === 'light'
                         ? `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.30 : 0.24)} 0%, ${hexA(tintColor, isWon ? 0.10 : 0.07)} 100%), rgba(255,255,255,0.94)`
-                        : `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.26 : 0.15)} 0%, ${hexA(tintColor, isWon ? 0.08 : 0.04)} 100%), rgba(20,20,24,0.90)`),
+                        : `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.26 : 0.20)} 0%, ${hexA(tintColor, isWon ? 0.08 : 0.04)} 100%), rgba(44,44,54,0.95)`),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.75 : 0.60) : (isWon ? 0.60 : 0.30))}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.75 : 0.60) : (isWon ? 0.60 : 0.42))}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
-                      boxShadow: theme.mode === 'light' ? '0 5px 14px rgba(30,40,90,0.16), inset 0 1px 0 rgba(255,255,255,0.9)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)',
+                      boxShadow: theme.mode === 'light' ? '0 5px 14px rgba(30,40,90,0.16), inset 0 1px 0 rgba(255,255,255,0.9)' : '0 10px 24px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.16)',
                       position: 'relative',
                     }}
                     onMouseDown={e => { if (!isViewer && !isLost) e.currentTarget.style.cursor = 'grabbing'; }}
