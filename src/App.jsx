@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Plus, Trash2, X, LogOut, Users, GitBranch, BarChart3,
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
@@ -638,6 +638,21 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
   const [editingStageName, setEditingStageName] = useState('');
   const [showAddStage, setShowAddStage] = useState(false);
   const [newStageName, setNewStageName] = useState('');
+  // Altura do quadro: do topo dele até o fim da tela, igual para todas as colunas
+  const boardRef = useRef(null);
+  const [boardH, setBoardH] = useState(560);
+  useLayoutEffect(() => {
+    function calc() {
+      const el = boardRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setBoardH(Math.max(380, Math.round(window.innerHeight - top - 48)));
+    }
+    calc();
+    const t = setTimeout(calc, 300);
+    window.addEventListener('resize', calc);
+    return () => { clearTimeout(t); window.removeEventListener('resize', calc); };
+  }, []);
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [targetStageId, setTargetStageId] = useState(funnel.stages[0]?.id);
@@ -874,7 +889,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+      <div ref={boardRef} style={{ display: 'flex', gap: 12, overflowX: 'auto', height: boardH, alignItems: 'stretch' }}>
         {funnel.stages.map((stage, idx) => {
           const stageCards = visibleCards.filter(c => c.stage_id === stage.id);
           const isWon = stage.id === wonStage?.id;
@@ -888,15 +903,16 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               onDragLeave={() => setDragOverStageId(prev => (prev === stage.id ? null : prev))}
               onDrop={() => { if (draggingStageId) dropStageOn(stage); else onDropStage(stage.id); }}
               style={{
-                minWidth: 236, width: 236, flexShrink: 0,
+                flex: '1 1 250px', minWidth: 250, display: 'flex', flexDirection: 'column', minHeight: 0,
                 background: isWon ? `linear-gradient(180deg, ${theme.wonSoft}, transparent), ${theme.columnBg}` : theme.columnBg,
-                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? theme.won + '55' : theme.border}`,
-                borderRadius: 18, padding: 12, opacity: isStageDragging ? 0.4 : 1,
+                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? theme.won + '40' : theme.border}`,
+                borderRadius: 18, padding: '12px 12px 8px', opacity: isStageDragging ? 0.4 : 1,
                 transition: 'border-color .12s, box-shadow .12s, opacity .12s',
                 boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '2px 3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, padding: '2px 3px 11px', minHeight: 52, borderBottom: `1px solid ${theme.borderStrong}`, position: 'relative', flexShrink: 0 }}>
+                <span style={{ position: 'absolute', left: 0, bottom: -1, height: 2, width: '55%', borderRadius: 2, background: `linear-gradient(90deg, ${stage.color}, transparent)` }} />
                 {!isViewer && (
                   <div
                     draggable
@@ -908,7 +924,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     <GripVertical size={13} />
                   </div>
                 )}
-                <span style={{ width: 8, height: 8, borderRadius: 4, background: stage.color, flexShrink: 0, boxShadow: `0 0 8px ${stage.color}66` }} />
+                <span style={{ width: 8, height: 8, borderRadius: 4, background: stage.color, flexShrink: 0, boxShadow: `0 0 6px ${stage.color}55` }} />
                 {editingStageId === stage.id ? (
                   <input
                     autoFocus
@@ -926,9 +942,9 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     onClick={() => { if (!isViewer) { setEditingStageId(stage.id); setEditingStageName(stage.name); } }}
                     title={!isViewer ? 'Clique para renomear' : undefined}
                     style={{
-                      fontSize: 12.5, fontWeight: 500, color: isWon ? theme.won : theme.textPrimary, flex: 1,
-                      letterSpacing: 0.1, cursor: isViewer ? 'default' : 'text',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      fontSize: 13.5, fontWeight: 500, color: isWon ? theme.won : theme.textPrimary, flex: 1,
+                      letterSpacing: 0.1, lineHeight: 1.25, cursor: isViewer ? 'default' : 'text',
+                      minWidth: 0, overflowWrap: 'anywhere',
                     }}>{stage.name}</span>
                 )}
                 <span style={{ fontSize: 10.5, color: theme.textSecondary, flexShrink: 0, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '1px 8px' }}>{stageCards.length}</span>
@@ -943,7 +959,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                 )}
               </div>
               {isWon && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, flexShrink: 0 }}>
                   <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} compact />
                   <ConversionBar label="Reunião realizada" value={conversionMeeting} color={theme.won} theme={theme} compact />
                   <div style={{ fontSize: 12, color: theme.won, fontWeight: 500, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
@@ -951,7 +967,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                   </div>
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minHeight: 40, maxHeight: 460, overflowY: 'auto', paddingRight: 2 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
                 {stageCards.map(card => {
                   const isLost = card.status === 'lost';
                   return (
@@ -964,10 +980,10 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
                       background: isLost ? theme.lostSoft : (theme.mode === 'light'
-                        ? `linear-gradient(150deg, ${hexA(stage.color, 0.26)} 0%, ${hexA(stage.color, 0.08)} 100%), rgba(255,255,255,0.94)`
-                        : `linear-gradient(150deg, ${hexA(stage.color, 0.26)} 0%, ${hexA(stage.color, 0.07)} 100%), rgba(20,20,24,0.90)`),
+                        ? `linear-gradient(150deg, ${hexA(stage.color, 0.17)} 0%, ${hexA(stage.color, 0.05)} 100%), rgba(255,255,255,0.94)`
+                        : `linear-gradient(150deg, ${hexA(stage.color, 0.15)} 0%, ${hexA(stage.color, 0.04)} 100%), rgba(20,20,24,0.90)`),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(stage.color, theme.mode === 'light' ? 0.55 : 0.50)}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(stage.color, theme.mode === 'light' ? 0.34 : 0.30)}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       boxShadow: theme.mode === 'light' ? '0 6px 18px rgba(30,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.8)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)',
                       position: 'relative',
@@ -991,7 +1007,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               </div>
               {!isViewer && (
                 <button onClick={() => openNewCard(stage.id)} style={{
-                  width: '100%', marginTop: 9, background: 'none', border: 'none', color: theme.textMuted,
+                  width: '100%', marginTop: 4, flexShrink: 0, background: 'none', border: 'none', color: theme.textMuted,
                   padding: '6px', fontSize: 11.5, cursor: 'pointer', textAlign: 'left',
                 }}>
                   + adicionar
