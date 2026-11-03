@@ -138,6 +138,8 @@ export function GlobalStyle() {
   input, select, textarea, button { font-family: inherit; font-weight: 300; }
   input, textarea, select { transition: border-color .15s, box-shadow .15s; }
   input:focus, textarea:focus, select:focus { outline: none; border-color: ${t.borderStrong} !important; box-shadow: 0 0 0 3px ${t.accentSoft}; }
+  select, select:focus, select:focus-visible { outline: none !important; }
+  input[style*="transparent"]:focus, select[style*="transparent"]:focus { box-shadow: none !important; border-color: transparent !important; background-color: transparent !important; }
   input::placeholder, textarea::placeholder { color: ${t.textMuted}; }
   button { transition: background-color .15s, border-color .15s, color .15s, opacity .15s, transform .15s; }
   button:not(:disabled):active { transform: scale(0.98); }
@@ -149,7 +151,7 @@ export function GlobalStyle() {
   .serif { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
   .eyebrow { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: ${t.textMuted}; font-weight: 400; }
   .kcard { transition: border-color .15s, transform .15s, box-shadow .15s, opacity .12s; }
-  .kcard:hover { border-color: ${t.borderStrong} !important; }
+  .kcard:hover { filter: brightness(1.14); }
   .pill-btn:hover { background: ${t.surfaceHover} !important; color: ${t.textPrimary} !important; }
   .nav-tab:hover { color: ${t.textPrimary} !important; }
   .glass { -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%); }

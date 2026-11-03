@@ -10,7 +10,7 @@ import AuthScreen from './AuthScreen';
 import { useTheme, useValuesVisibility } from './theme.jsx';
 import {
   STAGE_PALETTE, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, PLAN_OPTIONS, DURATION_OPTIONS,
-  fmtMoney, toNumericOrNull, normalize, fmtDate, fmtElapsed, FONT, FONT_LOGO,
+  fmtMoney, toNumericOrNull, normalize, fmtDate, fmtElapsed, FONT, FONT_LOGO, hexA,
 } from './styles';
 
 export default function App() {
@@ -633,7 +633,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [targetStageId, setTargetStageId] = useState(funnel.stages[0]?.id);
-  const [filterOrigin, setFilterOrigin] = useState('all');
+  const [filterOrigins, setFilterOrigins] = useState([]);
   const [filterResponsible, setFilterResponsible] = useState('all');
   const [search, setSearch] = useState('');
   const [viewStatus, setViewStatus] = useState('active'); // active | lost | all
@@ -653,7 +653,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
   const responsibleOptions = [...new Set(funnelResponsibles.map(r => r.name).concat(responsibles))].sort((a, b) => a.localeCompare(b));
 
   const baseFiltered = funnelCards.filter(c =>
-    (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterOrigins.length === 0 || filterOrigins.includes(c.origin)) &&
     (filterResponsible === 'all' || c.responsible === filterResponsible) &&
     ((c.name || '') + (c.email || '') + (c.phone || '')).toLowerCase().includes(search.toLowerCase())
   );
@@ -669,7 +669,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
 
   // Conversão do funil, já considerando os filtros de origem/responsável ativos acima.
   const filteredAllStatus = funnelCards.filter(c =>
-    (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterOrigins.length === 0 || filterOrigins.includes(c.origin)) &&
     (filterResponsible === 'all' || c.responsible === filterResponsible)
   );
   const wonCount = filteredAllStatus.filter(c => c.status !== 'lost' && c.stage_id === wonStage?.id).length;
@@ -822,7 +822,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
           <Filter size={12} color={theme.textMuted} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar lead" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 12.5, width: '100%' }} />
         </div>
-        <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+        <MultiSelectFilter icon={<Tag size={12} color={theme.textMuted} />} selected={filterOrigins} onChange={setFilterOrigins} options={origins} getKey={o => o} getLabel={o => o} placeholder="Todas as origens" />
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibleOptions} placeholder="Todos os responsáveis" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Ver:</span>
@@ -923,9 +923,13 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     onDragEnd={() => { setDragCardId(null); setDragOverStageId(null); }}
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
-                      background: isLost ? theme.lostSoft : theme.cardBg, borderRadius: 14, padding: '12px 13px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'), border: `1px solid ${isLost ? theme.lost + '60' : theme.border}`,
+                      background: isLost ? theme.lostSoft : (theme.mode === 'light'
+                        ? `linear-gradient(150deg, ${hexA(stage.color, 0.30)} 0%, ${hexA(stage.color, 0.10)} 100%), rgba(255,255,255,0.62)`
+                        : `linear-gradient(150deg, ${hexA(stage.color, 0.24)} 0%, ${hexA(stage.color, 0.08)} 55%, rgba(255,255,255,0.035) 100%)`),
+                      borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(stage.color, theme.mode === 'light' ? 0.45 : 0.32)}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
-                      boxShadow: theme.shadowSm,
+                      boxShadow: theme.mode === 'light' ? '0 6px 18px rgba(30,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.8)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)',
                       position: 'relative',
                     }}
                     onMouseDown={e => { if (!isViewer && !isLost) e.currentTarget.style.cursor = 'grabbing'; }}
@@ -1483,7 +1487,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
   const { theme } = useTheme();
   const { hidden: valuesHidden } = useValuesVisibility();
   const [filterResponsible, setFilterResponsible] = useState('all');
-  const [filterOrigin, setFilterOrigin] = useState('all');
+  const [filterOrigins, setFilterOrigins] = useState([]);
   const [filterFunnel, setFilterFunnel] = useState('all');
 
   const responsibleNames = [...new Set(allCards.map(c => c.responsible).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -1492,7 +1496,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
 
   const cards = allCards.filter(c =>
     (filterResponsible === 'all' || c.responsible === filterResponsible) &&
-    (filterOrigin === 'all' || c.origin === filterOrigin) &&
+    (filterOrigins.length === 0 || filterOrigins.includes(c.origin)) &&
     (filterFunnel === 'all' || c.funnel_id === filterFunnel)
   );
 
@@ -1537,7 +1541,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
           </select>
         </div>
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibleNames} placeholder="Todos os responsáveis" />
-        <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
+        <MultiSelectFilter icon={<Tag size={12} color={theme.textMuted} />} selected={filterOrigins} onChange={setFilterOrigins} options={origins} getKey={o => o} getLabel={o => o} placeholder="Todas as origens" />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 26 }}>
         <StatCard icon={<Users size={15} />} label="Total de leads" value={total} />
