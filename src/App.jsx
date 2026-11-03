@@ -446,7 +446,7 @@ export default function App() {
 function Shell({ children }) {
   const { theme } = useTheme();
   return (
-    <div style={{ fontFamily: FONT, background: theme.bg, color: theme.textPrimary, minHeight: '100vh' }}>
+    <div style={{ fontFamily: FONT, background: 'transparent', color: theme.textPrimary, minHeight: '100vh' }}>
       {children}
     </div>
   );
@@ -499,7 +499,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
         <span className="serif" style={{ fontSize: 22, fontStyle: 'italic', color: theme.textPrimary, lineHeight: 1 }}>CRM</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 999, padding: 4, boxShadow: theme.shadowSm }}>
+      <div className="glass" style={{ display: 'flex', gap: 2, background: theme.columnBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 999, padding: 4, boxShadow: theme.shadowSm }}>
         {tabs.map(t => {
           const active = tab === t.id;
           return (
@@ -843,6 +843,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
           return (
             <div
               key={stage.id}
+              className="glass"
               onDragOver={e => { e.preventDefault(); if (dragOverStageId !== stage.id) setDragOverStageId(stage.id); }}
               onDragLeave={() => setDragOverStageId(prev => (prev === stage.id ? null : prev))}
               onDrop={() => { if (draggingStageId) dropStageOn(stage); else onDropStage(stage.id); }}
@@ -933,7 +934,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.textSecondary, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
                     {isLost && card.loss_reason && <div style={{ fontSize: 10.5, color: theme.lost, marginTop: 3, fontStyle: 'italic' }}>{card.loss_reason}</div>}
-                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 15, color: theme.won, fontWeight: 400, marginTop: 6, fontFamily: FONT_LOGO, letterSpacing: 0.2 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
+                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 14, color: theme.won, fontWeight: 500, marginTop: 6 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
                     {!isLost && isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
                       <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
@@ -1093,7 +1094,7 @@ function MultiSelectFilter({ icon, selected, onChange, options, placeholder, get
       {open && (
         <div style={{
           position: 'absolute', top: '110%', left: 0, zIndex: 50, minWidth: 200, maxHeight: 260, overflowY: 'auto',
-          background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, boxShadow: theme.shadow, padding: 6,
+          background: theme.modalBg, border: `1px solid ${theme.border}`, borderRadius: 16, boxShadow: theme.shadow, padding: 6,
         }}>
           {selected.length > 0 && (
             <div onClick={() => onChange([])} style={{ fontSize: 11.5, color: theme.accent, cursor: 'pointer', fontWeight: 500, padding: '6px 8px' }}>
@@ -1854,7 +1855,7 @@ function StatCard({ icon, label, value, color }) {
         <span style={{ color: color || theme.accent, display: 'flex' }}>{icon}</span>
         <span style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary }}>{label}</span>
       </div>
-      <div style={{ fontFamily: FONT_LOGO, fontSize: 32, fontWeight: 400, color: theme.textPrimary, letterSpacing: -0.3, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 26, fontWeight: 400, color: theme.textPrimary, letterSpacing: -0.4, lineHeight: 1.15 }}>{value}</div>
     </div>
   );
 }
@@ -1919,8 +1920,8 @@ function ConfirmDeleteLink({ onConfirm }) {
 function Modal({ children, onClose }) {
   const { theme } = useTheme();
   return (
-    <div className="fade-in" style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
-      <div className="modal-in" style={{ background: theme.cardBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 20, padding: 26, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
+    <div className="fade-in blur-overlay" style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
+      <div className="modal-in" style={{ background: theme.modalBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 20, padding: 26, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
         <button onClick={onClose} style={{ float: 'right', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', marginTop: -4 }}><X size={17} /></button>
         {children}
       </div>

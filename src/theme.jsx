@@ -4,13 +4,14 @@ const THEMES = {
   dark: {
     mode: 'dark',
     bg: '#09090a',
-    surface: '#111112',
-    surfaceAlt: '#19191b',
-    surfaceHover: '#212123',
-    cardBg: 'linear-gradient(180deg, #1e1e20 0%, #171719 100%)',
-    columnBg: 'linear-gradient(180deg, #131314 0%, #0e0e0f 100%)',
-    border: 'rgba(255,255,255,0.08)',
-    borderStrong: 'rgba(255,255,255,0.16)',
+    surface: '#141416',
+    surfaceAlt: '#1b1b1e',
+    surfaceHover: '#242427',
+    cardBg: 'linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 100%)',
+    columnBg: 'linear-gradient(180deg, rgba(24,24,28,0.62) 0%, rgba(14,14,17,0.55) 100%)',
+    modalBg: 'linear-gradient(180deg, #202023 0%, #151517 100%)',
+    border: 'rgba(255,255,255,0.09)',
+    borderStrong: 'rgba(255,255,255,0.18)',
     textPrimary: '#f4f4f2',
     textSecondary: '#b4b4b0',
     textMuted: '#76767a',
@@ -24,18 +25,24 @@ const THEMES = {
     shadow: '0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.5)',
     shadowSm: '0 1px 0 rgba(255,255,255,0.05) inset, 0 1px 2px rgba(0,0,0,0.4)',
     overlay: 'rgba(0,0,0,0.72)',
-    glow: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,0.07), transparent 70%)',
+    depth: [
+      'radial-gradient(60% 55% at 12% 4%, rgba(112,138,200,0.42) 0%, transparent 70%)',
+      'radial-gradient(50% 50% at 88% 8%, rgba(150,165,120,0.26) 0%, transparent 70%)',
+      'radial-gradient(55% 55% at 78% 100%, rgba(176,100,78,0.28) 0%, transparent 70%)',
+      'radial-gradient(50% 50% at 4% 96%, rgba(100,82,160,0.30) 0%, transparent 70%)',
+    ].join(','),
   },
   light: {
     mode: 'light',
-    bg: '#f6f6f4',
+    bg: '#eceef3',
     surface: '#ffffff',
-    surfaceAlt: '#f0f0ee',
-    surfaceHover: '#e8e8e5',
-    cardBg: 'linear-gradient(180deg, #ffffff 0%, #fafaf8 100%)',
-    columnBg: 'linear-gradient(180deg, #ffffff 0%, #f8f8f6 100%)',
-    border: 'rgba(0,0,0,0.10)',
-    borderStrong: 'rgba(0,0,0,0.20)',
+    surfaceAlt: '#f3f3f5',
+    surfaceHover: '#e9e9ec',
+    cardBg: 'linear-gradient(180deg, rgba(255,255,255,0.86) 0%, rgba(255,255,255,0.70) 100%)',
+    columnBg: 'linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.38) 100%)',
+    modalBg: 'linear-gradient(180deg, #ffffff 0%, #f8f8fa 100%)',
+    border: 'rgba(0,0,0,0.08)',
+    borderStrong: 'rgba(0,0,0,0.18)',
     textPrimary: '#0e0e0f',
     textSecondary: '#55555a',
     textMuted: '#8a8a8f',
@@ -49,7 +56,12 @@ const THEMES = {
     shadow: '0 12px 32px rgba(16,16,20,0.10)',
     shadowSm: '0 1px 2px rgba(16,16,20,0.06)',
     overlay: 'rgba(20,20,24,0.45)',
-    glow: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,0,0,0.04), transparent 70%)',
+    depth: [
+      'radial-gradient(60% 55% at 10% 6%, rgba(138,160,255,0.50) 0%, transparent 70%)',
+      'radial-gradient(50% 50% at 90% 10%, rgba(255,196,160,0.45) 0%, transparent 70%)',
+      'radial-gradient(55% 55% at 80% 100%, rgba(170,220,205,0.50) 0%, transparent 70%)',
+      'radial-gradient(50% 50% at 6% 96%, rgba(205,175,255,0.42) 0%, transparent 70%)',
+    ].join(','),
   },
 };
 
@@ -120,7 +132,7 @@ export function GlobalStyle() {
   const css = `
   html, body { background: ${t.bg}; }
   body { margin: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: ${t.textPrimary}; }
-  body::before { content: ''; position: fixed; inset: 0; background: ${t.glow}; pointer-events: none; z-index: 0; }
+  body::before { content: ''; position: fixed; inset: 0; background: ${t.depth}; pointer-events: none; z-index: 0; transform: translateZ(0); }
   #root { position: relative; z-index: 1; }
   * { box-sizing: border-box; }
   input, select, textarea, button { font-family: inherit; font-weight: 300; }
@@ -140,6 +152,8 @@ export function GlobalStyle() {
   .kcard:hover { border-color: ${t.borderStrong} !important; }
   .pill-btn:hover { background: ${t.surfaceHover} !important; color: ${t.textPrimary} !important; }
   .nav-tab:hover { color: ${t.textPrimary} !important; }
+  .glass { -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%); }
+  .blur-overlay { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
   .modal-in { animation: modalIn .18s ease-out; }
   @keyframes modalIn { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
   .fade-in { animation: fadeIn .2s ease-out; }

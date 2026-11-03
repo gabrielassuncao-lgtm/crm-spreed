@@ -159,8 +159,8 @@ export default function AuthScreen() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
-      <div className="modal-in" style={{
-        width: '100%', maxWidth: 380, background: theme.cardBg, border: `1px solid ${theme.borderStrong}`,
+      <div className="modal-in glass" style={{
+        width: '100%', maxWidth: 380, background: theme.columnBg, border: `1px solid ${theme.borderStrong}`,
         borderRadius: 24, padding: '40px 34px 32px', boxShadow: theme.shadow,
       }}>
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
