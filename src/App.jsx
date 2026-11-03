@@ -904,8 +904,8 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               onDrop={() => { if (draggingStageId) dropStageOn(stage); else onDropStage(stage.id); }}
               style={{
                 flex: '1 1 250px', minWidth: 250, display: 'flex', flexDirection: 'column', minHeight: 0,
-                background: isWon ? `linear-gradient(180deg, ${hexA(theme.won, theme.mode === 'light' ? 0.24 : 0.20)} 0%, ${hexA(theme.won, 0.05)} 65%, transparent 100%), ${theme.columnBg}` : theme.columnBg,
-                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? hexA(theme.won, 0.55) : theme.border}`,
+                background: isWon ? `linear-gradient(180deg, ${hexA(theme.won, theme.mode === 'light' ? 0.11 : 0.20)} 0%, ${hexA(theme.won, theme.mode === 'light' ? 0.03 : 0.05)} 65%, transparent 100%), ${theme.columnBg}` : theme.columnBg,
+                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? hexA(theme.won, theme.mode === 'light' ? 0.34 : 0.55) : theme.border}`,
                 borderRadius: 18, padding: '12px 12px 8px', opacity: isStageDragging ? 0.4 : 1,
                 transition: 'border-color .12s, box-shadow .12s, opacity .12s',
                 boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : (theme.mode === 'dark' ? 'inset 0 0 36px rgba(0,0,0,0.38)' : 'none'),
@@ -962,7 +962,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, flexShrink: 0 }}>
                   <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} compact />
                   <ConversionBar label="Reunião realizada" value={conversionMeeting} color={theme.won} theme={theme} compact />
-                  <div style={{ fontSize: 12.5, color: theme.won, fontWeight: 600, padding: '7px 10px', background: hexA(theme.won, 0.16), border: `1px solid ${hexA(theme.won, 0.45)}`, borderRadius: 10 }}>
+                  <div style={{ fontSize: 12.5, color: theme.won, fontWeight: 600, padding: '7px 10px', background: hexA(theme.won, theme.mode === 'light' ? 0.10 : 0.16), border: `1px solid ${hexA(theme.won, theme.mode === 'light' ? 0.30 : 0.45)}`, borderRadius: 10 }}>
                     Total: {valuesHidden ? '••••••' : fmtMoney(wonTotal)}
                   </div>
                 </div>
@@ -982,16 +982,16 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     style={{
                       background: isLost ? theme.lostSoft : (isWon
                         ? (theme.mode === 'light'
-                          ? `linear-gradient(150deg, ${hexA(theme.won, 0.46)} 0%, ${hexA(theme.won, 0.22)} 100%), rgba(196,236,214,0.97)`
+                          ? `linear-gradient(0deg, ${hexA(theme.won, 0.10)}, ${hexA(theme.won, 0.10)}), rgba(255,255,255,0.94)`
                           : `linear-gradient(150deg, ${hexA(theme.won, 0.14)} 0%, ${hexA(theme.won, 0.04)} 100%), rgba(30,54,44,0.94)`)
                         : (theme.mode === 'light'
-                          ? `linear-gradient(150deg, ${hexA(stage.color, 0.24)} 0%, ${hexA(stage.color, 0.07)} 100%), rgba(255,255,255,0.94)`
+                          ? `linear-gradient(0deg, ${hexA(stage.color, 0.12)}, ${hexA(stage.color, 0.12)}), rgba(255,255,255,0.94)`
                           : `linear-gradient(150deg, ${hexA(stage.color, 0.15)} 0%, ${hexA(stage.color, 0.04)} 100%), rgba(20,20,24,0.90)`)),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.85 : 0.60) : (isWon ? 0.50 : 0.30))}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.38 : 0.30) : (isWon ? 0.50 : 0.30))}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       boxShadow: theme.mode === 'light'
-                        ? (isWon ? `0 5px 14px ${hexA(theme.won, 0.28)}, inset 0 1px 0 rgba(255,255,255,0.9)` : '0 5px 14px rgba(30,40,90,0.16), inset 0 1px 0 rgba(255,255,255,0.9)')
+                        ? '0 1px 2px rgba(40,36,60,0.07), 0 4px 12px rgba(40,36,60,0.05)'
                         : (isWon ? '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)'),
                       position: 'relative',
                     }}

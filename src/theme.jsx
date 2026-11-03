@@ -34,15 +34,15 @@ const THEMES = {
   },
   light: {
     mode: 'light',
-    bg: '#d9dde8',
+    bg: '#ecebe8',
     surface: '#ffffff',
-    surfaceAlt: '#eceff5',
-    surfaceHover: '#dde1ea',
-    cardBg: 'linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.84) 100%)',
-    columnBg: 'linear-gradient(180deg, rgba(226,230,242,0.66) 0%, rgba(210,215,232,0.52) 100%)',
+    surfaceAlt: '#f3f2f0',
+    surfaceHover: '#e6e5e2',
+    cardBg: 'rgba(255,255,255,0.92)',
+    columnBg: 'rgba(255,255,255,0.52)',
     modalBg: 'linear-gradient(180deg, #ffffff 0%, #f8f8fa 100%)',
-    border: 'rgba(20,26,50,0.17)',
-    borderStrong: 'rgba(20,26,50,0.32)',
+    border: 'rgba(30,28,40,0.11)',
+    borderStrong: 'rgba(30,28,40,0.22)',
     textPrimary: '#0a0a0d',
     textSecondary: '#363843',
     textMuted: '#5c5e6a',
@@ -53,14 +53,14 @@ const THEMES = {
     wonSoft: 'rgba(11,122,71,0.14)',
     lost: '#bf2f2f',
     lostSoft: 'rgba(204,61,61,0.07)',
-    shadow: '0 12px 32px rgba(30,40,90,0.20)',
-    shadowSm: '0 1px 3px rgba(30,40,90,0.16)',
+    shadow: '0 12px 32px rgba(40,36,60,0.14)',
+    shadowSm: '0 1px 2px rgba(40,36,60,0.08)',
     overlay: 'rgba(20,20,24,0.45)',
     depth: [
-      'radial-gradient(60% 55% at 10% 6%, rgba(98,124,235,0.62) 0%, transparent 70%)',
-      'radial-gradient(50% 50% at 90% 10%, rgba(238,150,110,0.52) 0%, transparent 70%)',
-      'radial-gradient(55% 55% at 80% 100%, rgba(84,176,150,0.58) 0%, transparent 70%)',
-      'radial-gradient(50% 50% at 6% 96%, rgba(160,120,228,0.52) 0%, transparent 70%)',
+      'radial-gradient(60% 55% at 10% 6%, rgba(176,160,226,0.32) 0%, transparent 70%)',
+      'radial-gradient(50% 50% at 90% 10%, rgba(240,190,160,0.38) 0%, transparent 70%)',
+      'radial-gradient(55% 55% at 80% 100%, rgba(150,200,178,0.34) 0%, transparent 70%)',
+      'radial-gradient(50% 50% at 6% 96%, rgba(214,180,200,0.30) 0%, transparent 70%)',
     ].join(','),
   },
 };
@@ -154,7 +154,7 @@ export function GlobalStyle() {
   .kcard:hover { filter: brightness(1.14); }
   .pill-btn:hover { background: ${t.surfaceHover} !important; color: ${t.textPrimary} !important; }
   .nav-tab:hover { color: ${t.textPrimary} !important; }
-  .glass { -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%); }
+  .glass { -webkit-backdrop-filter: ${t.mode === 'light' ? 'none' : 'blur(18px) saturate(150%)'}; backdrop-filter: ${t.mode === 'light' ? 'none' : 'blur(18px) saturate(150%)'}; }
   .blur-overlay { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
   .modal-in { animation: modalIn .18s ease-out; }
   @keyframes modalIn { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
