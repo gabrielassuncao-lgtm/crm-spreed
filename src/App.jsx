@@ -1803,7 +1803,7 @@ function NewPasswordScreen({ onDone }) {
 
   async function submit() {
     setErr('');
-    if (password.length < 6) { setErr('A senha precisa ter pelo menos 6 caracteres.'); return; }
+    if (password.length < 8) { setErr('A senha precisa ter pelo menos 8 caracteres.'); return; }
     if (password !== confirm) { setErr('As senhas não coincidem.'); return; }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });

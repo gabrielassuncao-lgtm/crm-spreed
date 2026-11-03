@@ -4,6 +4,21 @@ import { supabase } from './lib/supabaseClient';
 import { FONT, FONT_LOGO } from './styles';
 import { useTheme } from './theme.jsx';
 
+const MIN_PASSWORD = 8;
+const MAX_ATTEMPTS = 5;
+const COOLDOWN_SECONDS = 30;
+const PENDING_KEY = 'crm-pending-invite';
+
+function readPending() {
+  try { return localStorage.getItem(PENDING_KEY); } catch (e) { return null; }
+}
+function savePending(token) {
+  try { localStorage.setItem(PENDING_KEY, token); } catch (e) {}
+}
+function clearPending() {
+  try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
+}
+
 export default function AuthScreen() {
   const { theme } = useTheme();
   const [mode, setMode] = useState('login');
@@ -13,67 +28,120 @@ export default function AuthScreen() {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [invite, setInvite] = useState(undefined); // undefined = checando, null = sem convite válido, objeto = válido
+  const [inviteToken, setInviteToken] = useState(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('invite');
     if (!token) { setInvite(null); return; }
-    supabase.from('invites').select('*').eq('token', token).maybeSingle().then(({ data }) => {
-      const valid = data && (data.reusable || !data.used_at);
-      setInvite(valid ? data : null);
-      if (valid) setMode('register');
+    setInviteToken(token);
+    supabase.rpc('get_invite', { p_token: token }).then(({ data }) => {
+      const found = Array.isArray(data) ? data[0] : null;
+      setInvite(found || null);
+      if (found) setMode('register');
     });
   }, []);
+
+  // Atualiza a contagem regressiva do bloqueio temporário
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const t = setInterval(() => {
+      setTick(n => n + 1);
+      if (Date.now() >= lockedUntil) { setLockedUntil(0); setFailedAttempts(0); }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [lockedUntil]);
+
+  const secondsLeft = lockedUntil ? Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000)) : 0;
+
+  function goToApp() {
+    window.location.replace(window.location.pathname);
+  }
+
+  async function redeem(token) {
+    const { error } = await supabase.rpc('redeem_invite', { p_token: token });
+    return !error;
+  }
 
   async function submit() {
     setErr('');
     setInfo('');
+
     if (mode === 'forgot') {
       if (!email.trim()) { setErr('Informe seu e-mail.'); return; }
       setLoading(true);
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}${window.location.pathname}`,
       });
       setLoading(false);
-      if (error) setErr(traduzErro(error.message));
-      else setInfo('Se esse e-mail tiver uma conta, enviamos um link de redefinição. Confira também o spam.');
+      // Mesma mensagem sempre, exista a conta ou não, pra ninguém descobrir quem tem conta.
+      setInfo('Se esse e-mail tiver uma conta, enviamos um link de redefinição. Confira também o spam.');
       return;
     }
-    if (!email.trim() || !password.trim()) {
+
+    if (!email.trim() || !password) {
       setErr('Preencha e-mail e senha.');
       return;
     }
-    setLoading(true);
+
     if (mode === 'login') {
+      if (secondsLeft > 0) { setErr(`Muitas tentativas. Aguarde ${secondsLeft}s.`); return; }
+      setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) setErr(traduzErro(error.message));
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
       if (error) {
-        setErr(traduzErro(error.message));
-      } else if (data.session) {
-        // Cria o perfil vinculado ao convite e, se não for um link permanente, marca o convite como usado
-        await supabase.from('profiles').insert({ id: data.user.id, email: email.trim(), role: invite.role });
-        if (!invite.reusable) {
-          await supabase.from('invites').update({ used_by: data.user.id, used_at: new Date().toISOString() }).eq('id', invite.id);
-        }
-        if (invite.funnel_ids && invite.funnel_ids.length > 0) {
-          await supabase.from('funnel_access').insert(
-            invite.funnel_ids.map(funnelId => ({ profile_id: data.user.id, funnel_id: funnelId }))
-          );
+        const attempts = failedAttempts + 1;
+        setFailedAttempts(attempts);
+        if (attempts >= MAX_ATTEMPTS) {
+          setLockedUntil(Date.now() + COOLDOWN_SECONDS * 1000);
+          setErr(`Muitas tentativas. Aguarde ${COOLDOWN_SECONDS}s.`);
+        } else {
+          setErr('E-mail ou senha incorretos.');
         }
       } else {
-        setInfo('Conta criada. Verifique seu e-mail para confirmar antes de entrar.');
+        // Caso a pessoa tenha criado a conta e só confirmou o e-mail depois, finaliza o convite agora.
+        const pending = readPending();
+        if (pending) {
+          const ok = await redeem(pending);
+          clearPending();
+          if (ok) { goToApp(); return; }
+        }
       }
+      setLoading(false);
+      return;
+    }
+
+    // Cadastro (só com convite válido)
+    if (!invite || !inviteToken) { setErr('Convite inválido ou já usado.'); return; }
+    if (password.length < MIN_PASSWORD) {
+      setErr(`A senha precisa ter pelo menos ${MIN_PASSWORD} caracteres.`);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+    if (error) {
+      setErr(traduzErro(error.message));
+    } else if (data.session) {
+      const ok = await redeem(inviteToken);
+      if (ok) { goToApp(); return; }
+      await supabase.auth.signOut();
+      setErr('Não foi possível usar esse convite. Ele pode ter sido usado ou cancelado.');
+    } else {
+      // Sem sessão: o e-mail precisa ser confirmado antes. O convite é finalizado no primeiro login.
+      savePending(inviteToken);
+      setInfo('Conta criada. Confirme seu e-mail e depois entre com sua senha.');
     }
     setLoading(false);
   }
 
   function traduzErro(msg) {
     if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
-    if (msg.includes('User already registered')) return 'Esse e-mail já tem conta. Tente entrar.';
-    if (msg.includes('Password should be')) return 'A senha precisa ter pelo menos 6 caracteres.';
-    return msg;
+    if (msg.includes('User already registered')) return 'Não foi possível criar a conta com esses dados. Se você já tem conta, entre ou use "Esqueci minha senha".';
+    if (msg.includes('Password should be') || msg.includes('weak') || msg.includes('pwned')) return 'Essa senha é fraca ou já apareceu em vazamentos. Escolha outra, com pelo menos 8 caracteres.';
+    if (msg.toLowerCase().includes('rate limit')) return 'Muitas tentativas. Espere alguns minutos e tente de novo.';
+    return 'Não foi possível concluir. Tente de novo.';
   }
 
   const inputStyle = {
@@ -86,6 +154,7 @@ export default function AuthScreen() {
   };
 
   const canRegister = mode === 'register' && invite;
+  const blocked = mode === 'login' && secondsLeft > 0;
 
   return (
     <div style={{ minHeight: 440, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
@@ -101,26 +170,33 @@ export default function AuthScreen() {
 
         <div style={{ position: 'relative', marginBottom: mode === 'forgot' ? 14 : 10 }}>
           <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><UserIcon size={14} /></div>
-          <input placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
+          <input type="email" autoComplete="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && mode === 'forgot' && submit()} style={inputStyle} />
         </div>
         {mode !== 'forgot' && (
           <div style={{ position: 'relative', marginBottom: 14 }}>
             <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><Lock size={14} /></div>
-            <input type="password" placeholder="Senha (mín. 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submit()} style={inputStyle} />
+            <input
+              type="password"
+              autoComplete={canRegister ? 'new-password' : 'current-password'}
+              placeholder={canRegister ? `Senha (mín. ${MIN_PASSWORD} caracteres)` : 'Senha'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submit()}
+              style={inputStyle}
+            />
           </div>
         )}
 
         {err && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.lost, fontSize: 12.5, marginBottom: 12 }}>
-            <AlertCircle size={13} /> {err}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.lost, fontSize: 12.5, marginBottom: 12, lineHeight: 1.4 }}>
+            <AlertCircle size={13} style={{ flexShrink: 0 }} /> {err}
           </div>
         )}
         {info && <div style={{ color: theme.accent, fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>{info}</div>}
 
-        <button onClick={submit} disabled={loading} style={{ ...primaryBtn, width: '100%', opacity: loading ? 0.6 : 1 }}>
-          {loading ? 'Aguarde...' : mode === 'forgot' ? 'Enviar link de redefinição' : canRegister ? 'Criar conta' : 'Entrar'}
+        <button onClick={submit} disabled={loading || blocked} style={{ ...primaryBtn, width: '100%', opacity: loading || blocked ? 0.6 : 1 }}>
+          {loading ? 'Aguarde...' : blocked ? `Aguarde ${secondsLeft}s` : mode === 'forgot' ? 'Enviar link de redefinição' : canRegister ? 'Criar conta' : 'Entrar'}
         </button>
 
         {mode === 'login' && (
