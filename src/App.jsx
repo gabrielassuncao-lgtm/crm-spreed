@@ -5,12 +5,20 @@ import {
   GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, EyeOff, Pencil, Check, History
 } from 'lucide-react';
 import { LOGO_URL, LOGO_RATIO } from './logo.js';
+
+// Converte cor hex (#rrggbb) em rgba com transparência
+function hexA(hex, alpha) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return `rgba(255,255,255,${alpha * 0.5})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
 import { useTheme, useValuesVisibility } from './theme.jsx';
 import {
   STAGE_PALETTE, DEFAULT_STAGES, RESPONSIBLE_OPTIONS, PLAN_OPTIONS, DURATION_OPTIONS,
-  fmtMoney, toNumericOrNull, normalize, fmtDate, fmtElapsed, FONT, FONT_LOGO, hexA,
+  fmtMoney, toNumericOrNull, normalize, fmtDate, fmtElapsed, FONT, FONT_LOGO,
 } from './styles';
 
 export default function App() {
@@ -790,7 +798,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         {isViewer ? (
           <span style={{ fontSize: 12, color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={13} /> Modo somente visualização
@@ -803,7 +811,8 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
           </button>
         )}
         {!isViewer && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5 }}>
               <Settings2 size={13} /> Campos de ganho
             </button>
@@ -813,6 +822,37 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
             <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 999, padding: '8px 12px', cursor: 'pointer' }}>
               <Trash2 size={14} />
             </button>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+            {showAddStage ? (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  autoFocus
+                  value={newStageName}
+                  onChange={e => setNewStageName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }
+                    if (e.key === 'Escape') { setShowAddStage(false); setNewStageName(''); }
+                  }}
+                  placeholder="Nome da etapa"
+                  style={{ width: 170, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.borderStrong}`, borderRadius: 999, padding: '6px 12px', color: theme.textPrimary, fontSize: 12 }}
+                />
+                <button onClick={() => { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }} title="Criar etapa" style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                  <Check size={13} />
+                </button>
+                <button onClick={() => { setShowAddStage(false); setNewStageName(''); }} title="Cancelar" style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', display: 'flex', padding: 2 }}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button className="pill-btn" onClick={() => setShowAddStage(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none',
+                color: theme.textSecondary, borderRadius: 999, padding: '3px 10px', fontSize: 11.5, cursor: 'pointer',
+              }}>
+                <Plus size={12} /> Nova etapa
+              </button>
+            )}
+          </div>
           </div>
         )}
       </div>
@@ -826,7 +866,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibleOptions} placeholder="Todos os responsáveis" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Ver:</span>
-          <select value={viewStatus} onChange={e => setViewStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+          <select value={viewStatus} onChange={e => { setViewStatus(e.target.value); e.target.blur(); }} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
             <option value="active">Ativos</option>
             <option value="lost">Perdidos</option>
             <option value="all">Todos</option>
@@ -924,10 +964,10 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
                       background: isLost ? theme.lostSoft : (theme.mode === 'light'
-                        ? `linear-gradient(150deg, ${hexA(stage.color, 0.30)} 0%, ${hexA(stage.color, 0.10)} 100%), rgba(255,255,255,0.62)`
-                        : `linear-gradient(150deg, ${hexA(stage.color, 0.24)} 0%, ${hexA(stage.color, 0.08)} 55%, rgba(255,255,255,0.035) 100%)`),
+                        ? `linear-gradient(150deg, ${hexA(stage.color, 0.26)} 0%, ${hexA(stage.color, 0.08)} 100%), rgba(255,255,255,0.94)`
+                        : `linear-gradient(150deg, ${hexA(stage.color, 0.26)} 0%, ${hexA(stage.color, 0.07)} 100%), rgba(20,20,24,0.90)`),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(stage.color, theme.mode === 'light' ? 0.45 : 0.32)}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(stage.color, theme.mode === 'light' ? 0.55 : 0.50)}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       boxShadow: theme.mode === 'light' ? '0 6px 18px rgba(30,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.8)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)',
                       position: 'relative',
@@ -936,13 +976,13 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                   >
                     <div style={{ fontSize: 13.5, fontWeight: 500, color: isLost ? theme.lost : theme.textPrimary, marginBottom: 4, paddingRight: 26, lineHeight: 1.3 }}>{card.name}</div>
                     {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.textSecondary, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
-                    <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
+                    <div style={{ fontSize: 11, color: theme.textSecondary }}>{card.responsible}</div>
                     {isLost && card.loss_reason && <div style={{ fontSize: 10.5, color: theme.lost, marginTop: 3, fontStyle: 'italic' }}>{card.loss_reason}</div>}
                     {!isLost && isWon && card.value != null && <div style={{ fontSize: 14, color: theme.won, fontWeight: 500, marginTop: 6 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
                     {!isLost && isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
-                      <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
+                      <div style={{ fontSize: 10.5, color: theme.textSecondary, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
-                    <span title="Tempo nessa etapa" style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 9.5, color: theme.textMuted, fontWeight: 500 }}>
+                    <span title="Tempo nessa etapa" style={{ position: 'absolute', bottom: 7, right: 10, fontSize: 10, color: theme.textSecondary, fontWeight: 500 }}>
                       {fmtElapsed(card.stage_changed_at || card.created_at)}
                     </span>
                   </div>
@@ -960,35 +1000,6 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
             </div>
           );
         })}
-        {!isViewer && (
-          <div style={{ minWidth: 180, flexShrink: 0, display: 'flex', alignItems: 'flex-start', paddingTop: 4 }}>
-            {showAddStage ? (
-              <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                <input
-                  autoFocus
-                  value={newStageName}
-                  onChange={e => setNewStageName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }
-                    if (e.key === 'Escape') { setShowAddStage(false); setNewStageName(''); }
-                  }}
-                  placeholder="Nome da etapa"
-                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 999, padding: '9px 10px', color: theme.textPrimary, fontSize: 13 }}
-                />
-                <button onClick={() => { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>
-                  <Check size={14} />
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => setShowAddStage(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px dashed ${theme.borderStrong}`,
-                color: theme.textMuted, borderRadius: 18, padding: '11px 14px', fontSize: 12.5, cursor: 'pointer', width: '100%',
-              }}>
-                <Plus size={14} /> Nova etapa
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {showCardModal && (
@@ -1056,7 +1067,7 @@ function SelectFilter({ icon, value, onChange, options, placeholder }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
       {icon}
-      <select value={value} onChange={e => onChange(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+      <select value={value} onChange={e => { onChange(e.target.value); e.target.blur(); }} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
         <option value="all">{placeholder}</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
