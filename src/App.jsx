@@ -904,15 +904,15 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               onDrop={() => { if (draggingStageId) dropStageOn(stage); else onDropStage(stage.id); }}
               style={{
                 flex: '1 1 250px', minWidth: 250, display: 'flex', flexDirection: 'column', minHeight: 0,
-                background: isWon ? `linear-gradient(180deg, ${theme.wonSoft}, transparent), ${theme.columnBg}` : theme.columnBg,
-                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? theme.won + '40' : theme.border}`,
+                background: isWon ? `linear-gradient(180deg, ${hexA(theme.won, theme.mode === 'light' ? 0.24 : 0.20)} 0%, ${hexA(theme.won, 0.05)} 65%, transparent 100%), ${theme.columnBg}` : theme.columnBg,
+                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? hexA(theme.won, 0.55) : theme.border}`,
                 borderRadius: 18, padding: '12px 12px 8px', opacity: isStageDragging ? 0.4 : 1,
                 transition: 'border-color .12s, box-shadow .12s, opacity .12s',
                 boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, padding: '2px 3px 11px', minHeight: 52, borderBottom: `1px solid ${theme.borderStrong}`, position: 'relative', flexShrink: 0 }}>
-                <span style={{ position: 'absolute', left: 0, bottom: -1, height: 2, width: '55%', borderRadius: 2, background: `linear-gradient(90deg, ${stage.color}, transparent)` }} />
+                <span style={{ position: 'absolute', left: 0, bottom: -1, height: 2, width: isWon ? '100%' : '55%', borderRadius: 2, background: isWon ? theme.won : `linear-gradient(90deg, ${stage.color}, transparent)` }} />
                 {!isViewer && (
                   <div
                     draggable
@@ -924,7 +924,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     <GripVertical size={13} />
                   </div>
                 )}
-                <span style={{ width: 8, height: 8, borderRadius: 4, background: stage.color, flexShrink: 0, boxShadow: `0 0 6px ${stage.color}55` }} />
+                <span style={{ width: 8, height: 8, borderRadius: 4, background: isWon ? theme.won : stage.color, flexShrink: 0, boxShadow: `0 0 8px ${isWon ? theme.won : stage.color}88` }} />
                 {editingStageId === stage.id ? (
                   <input
                     autoFocus
@@ -962,7 +962,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, flexShrink: 0 }}>
                   <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} compact />
                   <ConversionBar label="Reunião realizada" value={conversionMeeting} color={theme.won} theme={theme} compact />
-                  <div style={{ fontSize: 12, color: theme.won, fontWeight: 500, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
+                  <div style={{ fontSize: 12.5, color: theme.won, fontWeight: 600, padding: '7px 10px', background: hexA(theme.won, 0.16), border: `1px solid ${hexA(theme.won, 0.45)}`, borderRadius: 10 }}>
                     Total: {valuesHidden ? '••••••' : fmtMoney(wonTotal)}
                   </div>
                 </div>
@@ -970,6 +970,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
                 {stageCards.map(card => {
                   const isLost = card.status === 'lost';
+                  const tintColor = isWon ? theme.won : stage.color;
                   return (
                   <div
                     key={card.id}
@@ -980,12 +981,12 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
                       background: isLost ? theme.lostSoft : (theme.mode === 'light'
-                        ? `linear-gradient(150deg, ${hexA(stage.color, 0.17)} 0%, ${hexA(stage.color, 0.05)} 100%), rgba(255,255,255,0.94)`
-                        : `linear-gradient(150deg, ${hexA(stage.color, 0.15)} 0%, ${hexA(stage.color, 0.04)} 100%), rgba(20,20,24,0.90)`),
+                        ? `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.30 : 0.24)} 0%, ${hexA(tintColor, isWon ? 0.10 : 0.07)} 100%), rgba(255,255,255,0.94)`
+                        : `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.26 : 0.15)} 0%, ${hexA(tintColor, isWon ? 0.08 : 0.04)} 100%), rgba(20,20,24,0.90)`),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(stage.color, theme.mode === 'light' ? 0.34 : 0.30)}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.75 : 0.60) : (isWon ? 0.60 : 0.30))}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
-                      boxShadow: theme.mode === 'light' ? '0 6px 18px rgba(30,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.8)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)',
+                      boxShadow: theme.mode === 'light' ? '0 5px 14px rgba(30,40,90,0.16), inset 0 1px 0 rgba(255,255,255,0.9)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)',
                       position: 'relative',
                     }}
                     onMouseDown={e => { if (!isViewer && !isLost) e.currentTarget.style.cursor = 'grabbing'; }}
@@ -994,7 +995,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.textSecondary, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textSecondary }}>{card.responsible}</div>
                     {isLost && card.loss_reason && <div style={{ fontSize: 10.5, color: theme.lost, marginTop: 3, fontStyle: 'italic' }}>{card.loss_reason}</div>}
-                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 14, color: theme.won, fontWeight: 500, marginTop: 6 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
+                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 14, color: theme.won, fontWeight: 600, marginTop: 6 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
                     {!isLost && isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
                       <div style={{ fontSize: 10.5, color: theme.textSecondary, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
@@ -1490,7 +1491,7 @@ function LeadsTab({ funnels, cards, origins }) {
               }}>
                 <div style={{ ...td, color: theme.textSecondary }}>{funnelName}</div>
                 <div style={{ ...td }}>
-                  <span style={{ fontSize: 10, fontWeight: 500, padding: '3px 8px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 500, padding: '3px 9px', borderRadius: 999, background: hexA(stage.color, theme.mode === 'light' ? 0.28 : 0.16), border: `1px solid ${hexA(stage.color, theme.mode === 'light' ? 0.55 : 0.30)}`, color: theme.mode === 'light' ? theme.textPrimary : stage.color, whiteSpace: 'nowrap' }}>
                     {stage.name}
                   </span>
                 </div>
