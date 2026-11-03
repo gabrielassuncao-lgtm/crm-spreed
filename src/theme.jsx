@@ -39,7 +39,7 @@ const THEMES = {
     surfaceAlt: '#f3f2f0',
     surfaceHover: '#e6e5e2',
     cardBg: 'rgba(255,255,255,0.97)',
-    columnBg: 'rgba(196,194,208,0.50)',
+    columnBg: 'rgba(246,245,250,0.55)',
     modalBg: 'linear-gradient(180deg, #ffffff 0%, #f8f8fa 100%)',
     border: 'rgba(30,28,50,0.15)',
     borderStrong: 'rgba(30,28,50,0.28)',

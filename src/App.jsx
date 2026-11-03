@@ -905,7 +905,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               style={{
                 flex: '1 1 250px', minWidth: 250, display: 'flex', flexDirection: 'column', minHeight: 0,
                 background: isWon ? `linear-gradient(180deg, ${hexA(theme.won, theme.mode === 'light' ? 0.26 : 0.20)} 0%, ${hexA(theme.won, theme.mode === 'light' ? 0.10 : 0.05)} 70%, transparent 100%), ${theme.columnBg}` : theme.columnBg,
-                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? hexA(theme.won, theme.mode === 'light' ? 0.60 : 0.55) : theme.border}`,
+                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? hexA(theme.won, theme.mode === 'light' ? 0.70 : 0.55) : (theme.mode === 'light' ? 'rgba(30,28,50,0.26)' : theme.border)}`,
                 borderRadius: 18, padding: '12px 12px 8px', opacity: isStageDragging ? 0.4 : 1,
                 transition: 'border-color .12s, box-shadow .12s, opacity .12s',
                 boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : (theme.mode === 'dark' ? 'inset 0 0 36px rgba(0,0,0,0.38)' : 'none'),
@@ -913,11 +913,9 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
             >
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, minHeight: 52, position: 'relative', flexShrink: 0,
-                ...(theme.mode === 'light'
-                  ? { padding: '6px 10px 8px', borderRadius: 12, background: isWon ? hexA(theme.won, 0.18) : 'rgba(255,255,255,0.78)', border: `1px solid ${isWon ? hexA(theme.won, 0.50) : theme.border}`, boxShadow: '0 1px 2px rgba(40,36,60,0.06)' }
-                  : { padding: '2px 3px 11px', borderBottom: `1px solid ${theme.borderStrong}` }),
+                padding: '2px 3px 11px', borderBottom: `1px solid ${theme.borderStrong}`,
               }}>
-                <span style={{ position: 'absolute', left: theme.mode === 'light' ? 10 : 0, bottom: theme.mode === 'light' ? 0 : -1, height: theme.mode === 'light' ? 3 : 2, width: isWon ? (theme.mode === 'light' ? 'calc(100% - 20px)' : '100%') : '55%', borderRadius: 2, background: isWon ? theme.won : `linear-gradient(90deg, ${stage.color}, transparent)` }} />
+                <span style={{ position: 'absolute', left: 0, bottom: -1, height: theme.mode === 'light' ? 3 : 2, width: isWon ? '100%' : '55%', borderRadius: 2, background: isWon ? theme.won : `linear-gradient(90deg, ${stage.color}, transparent)` }} />
                 {!isViewer && (
                   <div
                     draggable
@@ -987,16 +985,16 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     style={{
                       background: isLost ? theme.lostSoft : (isWon
                         ? (theme.mode === 'light'
-                          ? `linear-gradient(0deg, ${hexA(theme.won, 0.18)}, ${hexA(theme.won, 0.18)}), rgba(255,255,255,0.97)`
+                          ? `linear-gradient(0deg, ${hexA(theme.won, 0.34)}, ${hexA(theme.won, 0.34)}), rgba(255,255,255,0.97)`
                           : `linear-gradient(150deg, ${hexA(theme.won, 0.14)} 0%, ${hexA(theme.won, 0.04)} 100%), rgba(30,54,44,0.94)`)
                         : (theme.mode === 'light'
                           ? `linear-gradient(0deg, ${hexA(stage.color, 0.16)}, ${hexA(stage.color, 0.16)}), rgba(255,255,255,0.97)`
                           : `linear-gradient(150deg, ${hexA(stage.color, 0.15)} 0%, ${hexA(stage.color, 0.04)} 100%), rgba(20,20,24,0.90)`)),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.62 : 0.46) : (isWon ? 0.50 : 0.30))}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.85 : 0.46) : (isWon ? 0.50 : 0.30))}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
                       boxShadow: theme.mode === 'light'
-                        ? (isWon ? `0 2px 8px ${hexA(theme.won, 0.22)}, 0 1px 2px rgba(40,36,60,0.08)` : '0 2px 6px rgba(40,36,60,0.12), 0 1px 2px rgba(40,36,60,0.08)')
+                        ? (isWon ? `inset 4px 0 0 ${theme.won}, 0 3px 10px ${hexA(theme.won, 0.32)}, 0 1px 2px rgba(40,36,60,0.10)` : '0 2px 6px rgba(40,36,60,0.12), 0 1px 2px rgba(40,36,60,0.08)')
                         : (isWon ? '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)' : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)'),
                       position: 'relative',
                     }}
