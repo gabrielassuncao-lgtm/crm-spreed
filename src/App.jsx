@@ -980,13 +980,19 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     onDragEnd={() => { setDragCardId(null); setDragOverStageId(null); }}
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
-                      background: isLost ? theme.lostSoft : (theme.mode === 'light'
-                        ? `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.30 : 0.24)} 0%, ${hexA(tintColor, isWon ? 0.10 : 0.07)} 100%), rgba(255,255,255,0.94)`
-                        : `linear-gradient(150deg, ${hexA(tintColor, isWon ? 0.26 : 0.20)} 0%, ${hexA(tintColor, isWon ? 0.08 : 0.04)} 100%), rgba(44,44,54,0.95)`),
+                      background: isLost ? theme.lostSoft : (isWon
+                        ? (theme.mode === 'light'
+                          ? `linear-gradient(150deg, ${hexA(theme.won, 0.46)} 0%, ${hexA(theme.won, 0.22)} 100%), rgba(196,236,214,0.97)`
+                          : `linear-gradient(150deg, ${hexA(theme.won, 0.40)} 0%, ${hexA(theme.won, 0.16)} 100%), rgba(8,38,24,0.96)`)
+                        : (theme.mode === 'light'
+                          ? `linear-gradient(150deg, ${hexA(stage.color, 0.24)} 0%, ${hexA(stage.color, 0.07)} 100%), rgba(255,255,255,0.94)`
+                          : `linear-gradient(150deg, ${hexA(stage.color, 0.15)} 0%, ${hexA(stage.color, 0.04)} 100%), rgba(20,20,24,0.90)`)),
                       borderRadius: 18, padding: '13px 14px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'),
-                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.75 : 0.60) : (isWon ? 0.60 : 0.42))}`,
+                      border: `1px solid ${isLost ? theme.lost + '60' : hexA(tintColor, theme.mode === 'light' ? (isWon ? 0.85 : 0.60) : (isWon ? 0.75 : 0.30))}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
-                      boxShadow: theme.mode === 'light' ? '0 5px 14px rgba(30,40,90,0.16), inset 0 1px 0 rgba(255,255,255,0.9)' : '0 10px 24px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.16)',
+                      boxShadow: theme.mode === 'light'
+                        ? (isWon ? `0 5px 14px ${hexA(theme.won, 0.28)}, inset 0 1px 0 rgba(255,255,255,0.9)` : '0 5px 14px rgba(30,40,90,0.16), inset 0 1px 0 rgba(255,255,255,0.9)')
+                        : (isWon ? `0 8px 22px rgba(0,0,0,0.40), 0 0 18px ${hexA(theme.won, 0.18)}, inset 0 1px 0 rgba(255,255,255,0.14)` : '0 8px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)'),
                       position: 'relative',
                     }}
                     onMouseDown={e => { if (!isViewer && !isLost) e.currentTarget.style.cursor = 'grabbing'; }}

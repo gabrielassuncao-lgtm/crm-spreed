@@ -8,7 +8,7 @@ const THEMES = {
     surfaceAlt: '#1b1b1e',
     surfaceHover: '#242427',
     cardBg: 'linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 100%)',
-    columnBg: 'linear-gradient(180deg, rgba(8,8,11,0.58) 0%, rgba(4,4,6,0.50) 100%)',
+    columnBg: 'linear-gradient(180deg, rgba(16,16,20,0.60) 0%, rgba(9,9,12,0.52) 100%)',
     modalBg: 'linear-gradient(180deg, #202023 0%, #151517 100%)',
     border: 'rgba(255,255,255,0.09)',
     borderStrong: 'rgba(255,255,255,0.18)',
