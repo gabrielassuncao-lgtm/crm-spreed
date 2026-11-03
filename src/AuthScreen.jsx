@@ -3,6 +3,7 @@ import { User as UserIcon, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { FONT, FONT_LOGO } from './styles';
 import { useTheme } from './theme.jsx';
+import { LOGO_URL, LOGO_RATIO } from './logo.js';
 
 const MIN_PASSWORD = 8;
 const MAX_ATTEMPTS = 5;
@@ -146,36 +147,39 @@ export default function AuthScreen() {
 
   const inputStyle = {
     width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`,
-    borderRadius: 10, padding: '11px 12px 11px 34px', color: theme.textPrimary, fontSize: 14, outline: 'none',
+    borderRadius: 999, padding: '12px 14px 12px 38px', color: theme.textPrimary, fontSize: 14, outline: 'none',
   };
   const primaryBtn = {
-    background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9,
-    padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+    background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999,
+    padding: '12px 18px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer',
   };
 
   const canRegister = mode === 'register' && invite;
   const blocked = mode === 'login' && secondsLeft > 0;
 
   return (
-    <div style={{ minHeight: 440, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
-      <div style={{ width: '100%', maxWidth: 300 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: FONT }}>
+      <div className="modal-in" style={{
+        width: '100%', maxWidth: 380, background: theme.cardBg, border: `1px solid ${theme.borderStrong}`,
+        borderRadius: 24, padding: '40px 34px 32px', boxShadow: theme.shadow,
+      }}>
         <div style={{ textAlign: 'center', marginBottom: 30 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: theme.textPrimary, fontFamily: FONT_LOGO, letterSpacing: -0.3 }}>
-            CRM <span style={{ color: theme.accent }}>DOXA</span>
-          </h1>
-          <p style={{ fontSize: 12.5, color: theme.textMuted, margin: '6px 0 0' }}>
+          <img src={LOGO_URL} alt="DOXA" width={Math.round(30 * LOGO_RATIO)} height={30}
+            style={{ display: 'inline-block', filter: theme.mode === 'light' ? 'invert(1)' : 'none' }} />
+          <div className="serif" style={{ fontSize: 30, fontStyle: 'italic', color: theme.textPrimary, margin: '10px 0 0', lineHeight: 1 }}>CRM</div>
+          <p className="eyebrow" style={{ margin: '14px 0 0' }}>
             {mode === 'forgot' ? 'Redefinir senha' : canRegister ? 'Crie sua conta de acesso' : 'Entre com sua conta'}
           </p>
         </div>
 
         <div style={{ position: 'relative', marginBottom: mode === 'forgot' ? 14 : 10 }}>
-          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><UserIcon size={14} /></div>
+          <div style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><UserIcon size={14} /></div>
           <input type="email" autoComplete="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && mode === 'forgot' && submit()} style={inputStyle} />
         </div>
         {mode !== 'forgot' && (
           <div style={{ position: 'relative', marginBottom: 14 }}>
-            <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><Lock size={14} /></div>
+            <div style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }}><Lock size={14} /></div>
             <input
               type="password"
               autoComplete={canRegister ? 'new-password' : 'current-password'}
@@ -201,7 +205,7 @@ export default function AuthScreen() {
 
         {mode === 'login' && (
           <p style={{ textAlign: 'center', fontSize: 11.5, marginTop: 14 }}>
-            <span onClick={() => { setMode('forgot'); setErr(''); setInfo(''); }} style={{ color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+            <span onClick={() => { setMode('forgot'); setErr(''); setInfo(''); }} style={{ color: theme.textPrimary, cursor: 'pointer', fontWeight: 400, textDecoration: 'underline', textUnderlineOffset: 3 }}>
               Esqueci minha senha
             </span>
           </p>

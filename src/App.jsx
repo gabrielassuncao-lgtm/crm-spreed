@@ -4,6 +4,7 @@ import {
   Phone, Mail, Tag, Filter, DollarSign, TrendingUp, UserCircle2, AlertCircle,
   GripVertical, Sun, Moon, CreditCard, CalendarClock, Wallet, Settings2, Copy, Link2, Shield, Eye, EyeOff, Pencil, Check, History
 } from 'lucide-react';
+import { LOGO_URL, LOGO_RATIO } from './logo.js';
 import { supabase } from './lib/supabaseClient';
 import AuthScreen from './AuthScreen';
 import { useTheme, useValuesVisibility } from './theme.jsx';
@@ -52,20 +53,25 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     loadAll();
+    // Agrupa vários eventos seguidos em um único recarregamento (evita travadas ao mover cards)
+    let reloadTimer = null;
+    const loadAllSoon = () => {
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => loadAll(), 350);
+    };
     const channel = supabase
       .channel('crm-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnels' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'origins' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'loss_reasons' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'responsibles' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnel_access' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnel_access' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invites' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnels' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'origins' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loss_reasons' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'responsibles' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'funnel_access' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadAllSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invites' }, loadAllSoon)
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => { clearTimeout(reloadTimer); supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -347,7 +353,7 @@ export default function App() {
         <Centered>
           <div style={{ textAlign: 'center', maxWidth: 320 }}>
             <p style={{ fontSize: 13.5, marginBottom: 14 }}>Seu acesso a este CRM foi removido.</p>
-            <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: '1px solid currentColor', borderRadius: 9, padding: '8px 16px', fontSize: 12.5, cursor: 'pointer', color: 'inherit' }}>Sair</button>
+            <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: '1px solid currentColor', borderRadius: 999, padding: '8px 16px', fontSize: 12.5, cursor: 'pointer', color: 'inherit' }}>Sair</button>
           </div>
         </Centered>
       </Shell>
@@ -371,7 +377,7 @@ export default function App() {
     <Shell>
       <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} isViewer={isViewer} canViewReports={canViewReports} />
       {toast && <Toast toast={toast} />}
-      <div style={{ padding: '18px 22px 36px' }}>
+      <div style={{ padding: '14px 26px 40px' }}>
         {tab === 'funis' && (
           <FunisTab
             funnels={funnelsWithStages}
@@ -440,7 +446,7 @@ export default function App() {
 function Shell({ children }) {
   const { theme } = useTheme();
   return (
-    <div style={{ fontFamily: FONT, background: theme.bg, color: theme.textPrimary, minHeight: '100vh', transition: 'background .2s' }}>
+    <div style={{ fontFamily: FONT, background: theme.bg, color: theme.textPrimary, minHeight: '100vh' }}>
       {children}
     </div>
   );
@@ -455,7 +461,7 @@ function Toast({ toast }) {
   return (
     <div style={{
       position: 'fixed', top: 18, left: '50%', transform: 'translateX(-50%)',
-      background: theme.surfaceAlt, color: isErr ? theme.lost : theme.textPrimary, padding: '10px 18px', borderRadius: 10,
+      background: theme.surfaceAlt, color: isErr ? theme.lost : theme.textPrimary, padding: '11px 20px', borderRadius: 999,
       fontSize: 13, zIndex: 200, border: `1px solid ${isErr ? theme.lost + '55' : theme.border}`, boxShadow: theme.shadow,
       display: 'flex', alignItems: 'center', gap: 8,
     }}>
@@ -475,68 +481,58 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
     ...(canViewReports ? [{ id: 'relatorios', label: 'Relatórios', icon: BarChart3 }] : []),
     { id: 'config', label: 'Configurações', icon: Shield },
   ];
+  const circle = (active) => ({
+    background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: '50%', width: 34, height: 34, padding: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? theme.textPrimary : theme.textSecondary, cursor: 'pointer', flexShrink: 0,
+  });
+  const pill = {
+    background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, height: 34, padding: '0 14px',
+    display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12, fontWeight: 400,
+  };
+  const initial = (email || '?').trim().charAt(0).toUpperCase();
   return (
-    <div style={{ borderBottom: `1px solid ${theme.border}`, padding: '18px 22px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-          <span style={{ fontSize: 29, fontWeight: 700, color: theme.textPrimary, fontFamily: FONT_LOGO, letterSpacing: -0.5 }}>
-            CRM <span style={{ color: theme.accent }}>DOXA</span>
-          </span>
-          <span style={{ fontSize: 14, fontWeight: 500, color: theme.textMuted, marginLeft: 8, fontFamily: FONT_LOGO }}>
-            — Matriz
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {!isViewer && (
-            <>
-              <button onClick={onManageOrigins} title="Gerenciar origens" style={{
-                background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
-                display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
-              }}>
-                <Settings2 size={13} /> Origens
-              </button>
-              <button onClick={onManageReasons} title="Gerenciar motivos de perda" style={{
-                background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, height: 30, padding: '0 10px',
-                display: 'flex', alignItems: 'center', gap: 6, color: theme.textSecondary, cursor: 'pointer', fontSize: 12,
-              }}>
-                <Settings2 size={13} /> Motivos
-              </button>
-            </>
-          )}
-          <button onClick={toggleHidden} title={hidden ? 'Mostrar valores' : 'Ocultar valores'} style={{
-            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: hidden ? theme.accent : theme.textSecondary, cursor: 'pointer',
-          }}>
-            {hidden ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-          <button onClick={toggle} title="Mudar tema" style={{
-            background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, width: 30, height: 30,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textSecondary, cursor: 'pointer',
-          }}>
-            {mode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          <span style={{ fontSize: 12, color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <UserCircle2 size={14} /> {email}
-          </span>
-          <button onClick={onLogout} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-            <LogOut size={13} /> Sair
-          </button>
-        </div>
+    <div style={{ padding: '18px 26px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 150 }}>
+        <img src={LOGO_URL} alt="DOXA" width={Math.round(24 * LOGO_RATIO)} height={24}
+          style={{ display: 'block', filter: mode === 'light' ? 'invert(1)' : 'none' }} />
+        <span style={{ width: 1, height: 20, background: theme.borderStrong }} />
+        <span className="serif" style={{ fontSize: 22, fontStyle: 'italic', color: theme.textPrimary, lineHeight: 1 }}>CRM</span>
       </div>
-      <div style={{ display: 'flex', gap: 2 }}>
+
+      <div style={{ display: 'flex', gap: 2, background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 999, padding: 4, boxShadow: theme.shadowSm }}>
         {tabs.map(t => {
-          const Icon = t.icon;
           const active = tab === t.id;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer',
-              padding: '9px 13px', fontSize: 13, fontWeight: 550, color: active ? theme.textPrimary : theme.textMuted,
-              borderBottom: active ? `2px solid ${theme.accent}` : '2px solid transparent', transition: 'color .15s',
+            <button key={t.id} className="nav-tab" onClick={() => setTab(t.id)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer', borderRadius: 999,
+              padding: '7px 15px', fontSize: 12.5, fontWeight: active ? 500 : 400,
+              background: active ? theme.surfaceHover : 'transparent', color: active ? theme.textPrimary : theme.textMuted,
+              boxShadow: active ? `0 0 0 1px ${theme.border}` : 'none',
             }}>
-              <Icon size={13.5} /> {t.label}
+              <t.icon size={13} /> {t.label}
             </button>
           );
         })}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {!isViewer && (
+          <>
+            <button className="pill-btn" onClick={onManageOrigins} title="Gerenciar origens" style={pill}><Settings2 size={13} /> Origens</button>
+            <button className="pill-btn" onClick={onManageReasons} title="Gerenciar motivos de perda" style={pill}><Settings2 size={13} /> Motivos</button>
+          </>
+        )}
+        <button className="pill-btn" onClick={toggleHidden} title={hidden ? 'Mostrar valores' : 'Ocultar valores'} style={circle(hidden)}>
+          {hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
+        <button className="pill-btn" onClick={toggle} title="Mudar tema" style={circle(false)}>
+          {mode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
+        <div title={email} style={{
+          width: 34, height: 34, borderRadius: '50%', background: theme.accent, color: theme.accentText, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, flexShrink: 0,
+        }}>{initial}</div>
+        <button className="pill-btn" onClick={onLogout} title="Sair" style={circle(false)}><LogOut size={13} /></button>
       </div>
     </div>
   );
@@ -549,10 +545,10 @@ function FunisTab({ funnels, cards, origins, currentUserEmail, onAddOrigin, reas
   const [newFunnelName, setNewFunnelName] = useState('');
   const [newFunnelStages, setNewFunnelStages] = useState(DEFAULT_STAGES.join('\n'));
 
-  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
-  const modalTitle = { fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: theme.textPrimary };
-  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
+  const modalTitle = { fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 18px', color: theme.textPrimary };
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
 
   const activeFunnel = funnels.find(f => f.id === activeFunnelId);
 
@@ -590,7 +586,7 @@ function FunisTab({ funnels, cards, origins, currentUserEmail, onAddOrigin, reas
             background: f.id === activeFunnelId ? theme.accent : theme.surfaceAlt,
             color: f.id === activeFunnelId ? theme.accentText : theme.textSecondary,
             border: `1px solid ${f.id === activeFunnelId ? theme.accent : theme.border}`,
-            borderRadius: 18, padding: '7px 15px', fontSize: 12.5, fontWeight: 550, cursor: 'pointer',
+            borderRadius: 999, padding: '8px 18px', fontSize: 12.5, fontWeight: 400, cursor: 'pointer',
           }}>
             {f.name}
           </button>
@@ -598,7 +594,7 @@ function FunisTab({ funnels, cards, origins, currentUserEmail, onAddOrigin, reas
         {!isViewer && (
           <button onClick={() => setShowNewFunnel(true)} style={{
             display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${theme.border}`,
-            color: theme.textSecondary, borderRadius: 18, padding: '7px 15px', fontSize: 12.5, cursor: 'pointer',
+            color: theme.textSecondary, borderRadius: 999, padding: '8px 18px', fontSize: 12.5, cursor: 'pointer',
           }}>
             <Plus size={13} /> Novo funil
           </button>
@@ -649,7 +645,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
   const [showFieldsModal, setShowFieldsModal] = useState(false);
   const [showCardFieldsModal, setShowCardFieldsModal] = useState(false);
 
-  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
 
   const funnelCards = allCards.filter(c => c.funnel_id === funnel.id);
   const responsibles = [...new Set(funnelCards.map(c => c.responsible).filter(Boolean))];
@@ -801,20 +797,20 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
           </span>
         ) : (
           <button onClick={() => openNewCard(funnel.stages[0]?.id)} style={{
-            ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 12.5,
+            ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5,
           }}>
             <Plus size={14} /> Novo lead
           </button>
         )}
         {!isViewer && (
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontSize: 12.5 }}>
+            <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5 }}>
               <Settings2 size={13} /> Campos de ganho
             </button>
-            <button onClick={() => setShowCardFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 9, padding: '8px 12px', cursor: 'pointer', fontSize: 12.5 }}>
+            <button onClick={() => setShowCardFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5 }}>
               <Settings2 size={13} /> Campos do card
             </button>
-            <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}>
+            <button onClick={() => setConfirmDeleteFunnel(true)} style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textMuted, borderRadius: 999, padding: '8px 12px', cursor: 'pointer' }}>
               <Trash2 size={14} />
             </button>
           </div>
@@ -822,13 +818,13 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px', maxWidth: 240, flex: '1 1 180px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px', maxWidth: 260, flex: '1 1 180px' }}>
           <Filter size={12} color={theme.textMuted} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar lead" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 12.5, width: '100%' }} />
         </div>
         <SelectFilter icon={<Tag size={12} />} value={filterOrigin} onChange={setFilterOrigin} options={origins} placeholder="Todas as origens" />
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibleOptions} placeholder="Todos os responsáveis" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Ver:</span>
           <select value={viewStatus} onChange={e => setViewStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
             <option value="active">Ativos</option>
@@ -851,10 +847,10 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               onDragLeave={() => setDragOverStageId(prev => (prev === stage.id ? null : prev))}
               onDrop={() => { if (draggingStageId) dropStageOn(stage); else onDropStage(stage.id); }}
               style={{
-                minWidth: 226, width: 226, flexShrink: 0,
-                background: isWon ? theme.wonSoft : theme.surface,
-                border: `1.5px solid ${isDragOver ? theme.accent : isWon ? theme.won + '70' : theme.border}`,
-                borderRadius: 12, padding: 11, opacity: isStageDragging ? 0.4 : 1,
+                minWidth: 236, width: 236, flexShrink: 0,
+                background: isWon ? `linear-gradient(180deg, ${theme.wonSoft}, transparent), ${theme.columnBg}` : theme.columnBg,
+                border: `1px solid ${isDragOver ? theme.borderStrong : isWon ? theme.won + '55' : theme.border}`,
+                borderRadius: 18, padding: 12, opacity: isStageDragging ? 0.4 : 1,
                 transition: 'border-color .12s, box-shadow .12s, opacity .12s',
                 boxShadow: isDragOver ? `0 0 0 3px ${theme.accentSoft}` : 'none',
               }}
@@ -871,7 +867,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     <GripVertical size={13} />
                   </div>
                 )}
-                <span style={{ width: 7, height: 7, borderRadius: 4, background: stage.color, flexShrink: 0 }} />
+                <span style={{ width: 8, height: 8, borderRadius: 4, background: stage.color, flexShrink: 0, boxShadow: `0 0 8px ${stage.color}66` }} />
                 {editingStageId === stage.id ? (
                   <input
                     autoFocus
@@ -882,19 +878,19 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                       if (e.key === 'Escape') setEditingStageId(null);
                     }}
                     onBlur={() => { onRenameStage(stage.id, editingStageName); setEditingStageId(null); }}
-                    style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: theme.textPrimary, background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 6, padding: '2px 6px' }}
+                    style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 500, color: theme.textPrimary, background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 6, padding: '2px 6px' }}
                   />
                 ) : (
                   <span
                     onClick={() => { if (!isViewer) { setEditingStageId(stage.id); setEditingStageName(stage.name); } }}
                     title={!isViewer ? 'Clique para renomear' : undefined}
                     style={{
-                      fontSize: 12.5, fontWeight: 700, color: isWon ? theme.won : theme.textSecondary, flex: 1,
-                      letterSpacing: 0.4, textTransform: 'uppercase', cursor: isViewer ? 'default' : 'text',
+                      fontSize: 12.5, fontWeight: 500, color: isWon ? theme.won : theme.textPrimary, flex: 1,
+                      letterSpacing: 0.1, cursor: isViewer ? 'default' : 'text',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{stage.name}</span>
                 )}
-                <span style={{ fontSize: 11, color: theme.textMuted, flexShrink: 0 }}>{stageCards.length}</span>
+                <span style={{ fontSize: 10.5, color: theme.textSecondary, flexShrink: 0, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '1px 8px' }}>{stageCards.length}</span>
                 {!isViewer && editingStageId !== stage.id && (
                   <button
                     onClick={() => onDeleteStage(stage.id)}
@@ -909,7 +905,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                   <ConversionBar label="Conversão total" value={conversionTotal} color={theme.accent} theme={theme} compact />
                   <ConversionBar label="Reunião realizada" value={conversionMeeting} color={theme.won} theme={theme} compact />
-                  <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: theme.won, fontWeight: 500, padding: '6px 8px', background: theme.surface, borderRadius: 8 }}>
                     Total: {valuesHidden ? '••••••' : fmtMoney(wonTotal)}
                   </div>
                 </div>
@@ -920,27 +916,28 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                   return (
                   <div
                     key={card.id}
+                    className="kcard"
                     draggable={!isViewer && !isLost}
                     onDragStart={e => { if (isViewer || isLost) return; setDragCardId(card.id); e.dataTransfer.effectAllowed = 'move'; }}
                     onDragEnd={() => { setDragCardId(null); setDragOverStageId(null); }}
                     onClick={() => { if (!isViewer) openEditCard(card); }}
                     style={{
-                      background: isLost ? theme.lostSoft : theme.surfaceAlt, borderRadius: 9, padding: '10px 11px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'), border: `1px solid ${isLost ? theme.lost + '60' : theme.border}`,
+                      background: isLost ? theme.lostSoft : theme.cardBg, borderRadius: 14, padding: '12px 13px', cursor: isViewer ? 'default' : (isLost ? 'pointer' : 'grab'), border: `1px solid ${isLost ? theme.lost + '60' : theme.border}`,
                       opacity: dragCardId === card.id ? 0.35 : (isLost ? 0.85 : 1), transform: dragCardId === card.id ? 'scale(0.97)' : 'scale(1)',
-                      transition: 'opacity .12s, transform .12s, box-shadow .12s', boxShadow: theme.shadowSm,
+                      boxShadow: theme.shadowSm,
                       position: 'relative',
                     }}
                     onMouseDown={e => { if (!isViewer && !isLost) e.currentTarget.style.cursor = 'grabbing'; }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, color: isLost ? theme.lost : theme.textPrimary, marginBottom: 3, paddingRight: 26 }}>{card.name}</div>
-                    {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.accent, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
+                    <div style={{ fontSize: 13.5, fontWeight: 500, color: isLost ? theme.lost : theme.textPrimary, marginBottom: 4, paddingRight: 26, lineHeight: 1.3 }}>{card.name}</div>
+                    {card.origin && <div style={{ fontSize: 11, color: isLost ? theme.lost : theme.textSecondary, opacity: isLost ? 0.75 : 1, marginBottom: 3 }}>{card.origin}</div>}
                     <div style={{ fontSize: 11, color: theme.textMuted }}>{card.responsible}</div>
                     {isLost && card.loss_reason && <div style={{ fontSize: 10.5, color: theme.lost, marginTop: 3, fontStyle: 'italic' }}>{card.loss_reason}</div>}
-                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 12, color: theme.won, fontWeight: 650, marginTop: 5 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
+                    {!isLost && isWon && card.value != null && <div style={{ fontSize: 15, color: theme.won, fontWeight: 400, marginTop: 6, fontFamily: FONT_LOGO, letterSpacing: 0.2 }}>{valuesHidden ? '••••••' : fmtMoney(card.value)}</div>}
                     {!isLost && isWon && card.won_data && Object.values(card.won_data).some(Boolean) && (
                       <div style={{ fontSize: 10.5, color: theme.textMuted, marginTop: 2 }}>{Object.values(card.won_data).filter(Boolean).join(' · ')}</div>
                     )}
-                    <span title="Tempo nessa etapa" style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 9.5, color: theme.textMuted, fontWeight: 600 }}>
+                    <span title="Tempo nessa etapa" style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 9.5, color: theme.textMuted, fontWeight: 500 }}>
                       {fmtElapsed(card.stage_changed_at || card.created_at)}
                     </span>
                   </div>
@@ -971,16 +968,16 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
                     if (e.key === 'Escape') { setShowAddStage(false); setNewStageName(''); }
                   }}
                   placeholder="Nome da etapa"
-                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 9, padding: '9px 10px', color: theme.textPrimary, fontSize: 13 }}
+                  style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.accent}`, borderRadius: 999, padding: '9px 10px', color: theme.textPrimary, fontSize: 13 }}
                 />
-                <button onClick={() => { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>
+                <button onClick={() => { onAddStage(funnel.id, newStageName); setNewStageName(''); setShowAddStage(false); }} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>
                   <Check size={14} />
                 </button>
               </div>
             ) : (
               <button onClick={() => setShowAddStage(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1.5px dashed ${theme.border}`,
-                color: theme.textMuted, borderRadius: 12, padding: '11px 14px', fontSize: 12.5, cursor: 'pointer', width: '100%',
+                display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px dashed ${theme.borderStrong}`,
+                color: theme.textMuted, borderRadius: 18, padding: '11px 14px', fontSize: 12.5, cursor: 'pointer', width: '100%',
               }}>
                 <Plus size={14} /> Nova etapa
               </button>
@@ -1017,11 +1014,11 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
 
       {confirmDeleteFunnel && (
         <Modal onClose={() => setConfirmDeleteFunnel(false)}>
-          <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: theme.textPrimary }}>Excluir funil "{funnel.name}"?</h2>
+          <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 18px', color: theme.textPrimary }}>Excluir funil "{funnel.name}"?</h2>
           <p style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 20, lineHeight: 1.5 }}>Todos os cards desse funil também serão excluídos. Essa ação não pode ser desfeita.</p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setConfirmDeleteFunnel(false)} style={{ flex: 1, background: theme.surfaceAlt, color: theme.textPrimary, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={onDeleteFunnel} style={{ flex: 1, background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Excluir</button>
+            <button onClick={() => setConfirmDeleteFunnel(false)} style={{ flex: 1, background: theme.surfaceAlt, color: theme.textPrimary, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={onDeleteFunnel} style={{ flex: 1, background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 999, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Excluir</button>
           </div>
         </Modal>
       )}
@@ -1034,13 +1031,13 @@ function ConversionBar({ label, value, color, theme, compact }) {
   const pct = hasValue ? Math.round(value * 10) / 10 : 0;
   return (
     <div style={{
-      background: compact ? 'transparent' : theme.surface, border: compact ? 'none' : `1px solid ${theme.border}`,
-      borderRadius: compact ? 0 : 10, padding: compact ? '0' : '10px 14px',
+      background: compact ? 'transparent' : theme.cardBg, border: compact ? 'none' : `1px solid ${theme.border}`,
+      borderRadius: compact ? 0 : 14, padding: compact ? '0' : '10px 14px',
       minWidth: compact ? 'auto' : 200, flex: compact ? 'none' : '1 1 220px',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: compact ? 10.5 : 11.5, color: theme.textSecondary, marginBottom: 4 }}>
         <span>{label}</span>
-        <span style={{ fontWeight: 700, color: theme.textPrimary }}>{hasValue ? pct + '%' : '—'}</span>
+        <span style={{ fontWeight: 500, color: theme.textPrimary }}>{hasValue ? pct + '%' : '—'}</span>
       </div>
       <div style={{ height: compact ? 4 : 5, background: theme.surfaceAlt, borderRadius: 3 }}>
         <div style={{ height: compact ? 4 : 5, width: `${hasValue ? pct : 0}%`, background: color, borderRadius: 3, transition: 'width .2s' }} />
@@ -1052,7 +1049,7 @@ function ConversionBar({ label, value, color, theme, compact }) {
 function SelectFilter({ icon, value, onChange, options, placeholder }) {
   const { theme } = useTheme();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
       {icon}
       <select value={value} onChange={e => onChange(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
         <option value="all">{placeholder}</option>
@@ -1088,7 +1085,7 @@ function MultiSelectFilter({ icon, selected, onChange, options, placeholder, get
     <div ref={ref} style={{ position: 'relative' }}>
       <div
         onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${selected.length ? theme.accent + '60' : theme.border}`, borderRadius: 9, padding: '6px 11px', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${selected.length ? theme.accent + '60' : theme.border}`, borderRadius: 999, padding: '7px 14px', cursor: 'pointer' }}
       >
         {icon}
         <span style={{ color: selected.length ? theme.accent : theme.textSecondary, fontSize: 12, fontWeight: selected.length ? 650 : 400 }}>{label}</span>
@@ -1096,10 +1093,10 @@ function MultiSelectFilter({ icon, selected, onChange, options, placeholder, get
       {open && (
         <div style={{
           position: 'absolute', top: '110%', left: 0, zIndex: 50, minWidth: 200, maxHeight: 260, overflowY: 'auto',
-          background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, boxShadow: theme.shadow, padding: 6,
+          background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, boxShadow: theme.shadow, padding: 6,
         }}>
           {selected.length > 0 && (
-            <div onClick={() => onChange([])} style={{ fontSize: 11.5, color: theme.accent, cursor: 'pointer', fontWeight: 600, padding: '6px 8px' }}>
+            <div onClick={() => onChange([])} style={{ fontSize: 11.5, color: theme.accent, cursor: 'pointer', fontWeight: 500, padding: '6px 8px' }}>
               Limpar seleção
             </div>
           )}
@@ -1125,10 +1122,10 @@ function MultiSelectFilter({ icon, selected, onChange, options, placeholder, get
 
 function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onAddResponsible, cardFields, targetStageId, setTargetStageId, isWonStage, wonFields, onSave, onClose, onMarkLost, onRestore, onDelete }) {
   const { theme } = useTheme();
-  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
-  const modalTitle = { fontSize: 15.5, fontWeight: 650, margin: '0 0 18px', color: theme.textPrimary };
-  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
+  const modalTitle = { fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 18px', color: theme.textPrimary };
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
 
   const fields = cardFields || { phone: { enabled: true, label: 'Telefone' }, email: { enabled: true, label: 'E-mail' }, custom: [] };
 
@@ -1197,7 +1194,7 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <label style={{ ...labelStyle, marginTop: 12 }}>Origem</label>
         {!addingOrigin && (
-          <span onClick={() => setAddingOrigin(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+          <span onClick={() => setAddingOrigin(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
             + nova origem
           </span>
         )}
@@ -1212,7 +1209,7 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
             placeholder="Nome da nova origem"
             style={inputPlain}
           />
-          <button onClick={confirmNewOrigin} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+          <button onClick={confirmNewOrigin} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
         </div>
       ) : (
         <select value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} style={inputPlain}>
@@ -1224,7 +1221,7 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <label style={{ ...labelStyle, marginTop: 12 }}>Responsável</label>
         {!addingResponsible && (
-          <span onClick={() => setAddingResponsible(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+          <span onClick={() => setAddingResponsible(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
             + novo responsável
           </span>
         )}
@@ -1239,7 +1236,7 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
             placeholder="Nome da pessoa"
             style={inputPlain}
           />
-          <button onClick={confirmNewResponsible} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+          <button onClick={confirmNewResponsible} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
         </div>
       ) : (
         <select value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} style={inputPlain}>
@@ -1294,14 +1291,14 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
       {err && <div style={{ fontSize: 12.5, color: theme.lost, marginTop: 10 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
         <button onClick={submit} style={{ ...primaryBtn, flex: 1 }}>Salvar</button>
-        {onRestore && <button onClick={onRestore} style={{ background: theme.wonSoft, color: theme.won, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Restaurar</button>}
-        {onMarkLost && card?.status !== 'lost' && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
+        {onRestore && <button onClick={onRestore} style={{ background: theme.wonSoft, color: theme.won, border: 'none', borderRadius: 999, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Restaurar</button>}
+        {onMarkLost && card?.status !== 'lost' && <button onClick={onMarkLost} style={{ background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 999, padding: '10px 13px', fontSize: 13, cursor: 'pointer' }}>Marcar perdido</button>}
       </div>
       {onDelete && (
         confirmDelete ? (
           <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: 12, color: theme.textMuted }}>Excluir esse card?</span>
-            <span onClick={onDelete} style={{ fontSize: 12, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Sim, excluir</span>
+            <span onClick={onDelete} style={{ fontSize: 12, color: theme.lost, cursor: 'pointer', fontWeight: 500 }}>Sim, excluir</span>
             <span onClick={() => setConfirmDelete(false)} style={{ fontSize: 12, color: theme.accent, cursor: 'pointer' }}>Cancelar</span>
           </div>
         ) : (
@@ -1351,7 +1348,7 @@ function HistoryModal({ cardId, onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 16px', color: theme.textPrimary }}>Histórico de movimentações</h2>
+      <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 16px', color: theme.textPrimary }}>Histórico de movimentações</h2>
       {error && <div style={{ fontSize: 12.5, color: theme.lost }}>{error}</div>}
       {items === null && !error && <div style={{ fontSize: 12.5, color: theme.textMuted }}>Carregando...</div>}
       {items && items.length === 0 && <div style={{ fontSize: 12.5, color: theme.textMuted }}>Nenhum evento registrado ainda para esse card.</div>}
@@ -1359,7 +1356,7 @@ function HistoryModal({ cardId, onClose }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 400, overflowY: 'auto' }}>
           {items.map(ev => (
             <div key={ev.id} style={{ borderLeft: `2px solid ${theme.border}`, paddingLeft: 12, position: 'relative' }}>
-              <div style={{ fontSize: 13, color: theme.textPrimary, fontWeight: 600 }}>
+              <div style={{ fontSize: 13, color: theme.textPrimary, fontWeight: 500 }}>
                 {EVENT_LABEL[ev.event_type] || ev.event_type}
                 {ev.event_type === 'moved' && ev.from_stage_name && ev.to_stage_name && (
                   <span style={{ fontWeight: 400, color: theme.textSecondary }}> — {ev.from_stage_name} → {ev.to_stage_name}</span>
@@ -1407,19 +1404,19 @@ function LeadsTab({ funnels, cards, origins }) {
   else filtered = [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const cols = '0.85fr 1fr 1.2fr 1fr 1.3fr 0.85fr 0.85fr 1.3fr';
-  const th = { fontSize: 10.5, fontWeight: 700, color: theme.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', padding: '10px 12px' };
+  const th = { fontSize: 10.5, fontWeight: 500, color: theme.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', padding: '10px 12px' };
   const td = { fontSize: 12.5, color: theme.textSecondary, padding: '11px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 12px', maxWidth: 260, flex: '1 1 200px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '9px 12px', maxWidth: 260, flex: '1 1 200px' }}>
           <Filter size={13} color={theme.textMuted} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar leads e clientes" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 13, width: '100%' }} />
         </div>
         <MultiSelectFilter icon={<GitBranch size={12} color={theme.textMuted} />} selected={filterFunnels} onChange={setFilterFunnels} options={funnels} getKey={f => f.id} getLabel={f => f.name} placeholder="Todos os funis" />
         <MultiSelectFilter icon={<Tag size={12} color={theme.textMuted} />} selected={filterOrigins} onChange={setFilterOrigins} options={origins} getKey={o => o} getLabel={o => o} placeholder="Todas as origens" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Status:</span>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
             <option value="all">Todos</option>
@@ -1427,7 +1424,7 @@ function LeadsTab({ funnels, cards, origins }) {
             <option value="lost">Perdidos</option>
           </select>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
           <span style={{ fontSize: 12, color: theme.textMuted }}>Ordenar:</span>
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
             <option value="recent">Mais recentes</option>
@@ -1461,11 +1458,11 @@ function LeadsTab({ funnels, cards, origins }) {
               }}>
                 <div style={{ ...td, color: theme.textSecondary }}>{funnelName}</div>
                 <div style={{ ...td }}>
-                  <span style={{ fontSize: 10, fontWeight: 650, padding: '3px 8px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 500, padding: '3px 8px', borderRadius: 999, background: stage.color + '1E', color: stage.color, whiteSpace: 'nowrap' }}>
                     {stage.name}
                   </span>
                 </div>
-                <div style={{ ...td, fontWeight: 600, color: theme.textPrimary }}>{c.name}</div>
+                <div style={{ ...td, fontWeight: 500, color: theme.textPrimary }}>{c.name}</div>
                 <div style={td}>{c.phone || '—'}</div>
                 <div style={td}>{c.email || '—'}</div>
                 <div style={td}>{c.origin || '—'}</div>
@@ -1531,7 +1528,7 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '6px 11px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px' }}>
           <GitBranch size={12} color={theme.textMuted} />
           <select value={filterFunnel} onChange={e => setFilterFunnel(e.target.value)} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
             <option value="all">Todos os funis</option>
@@ -1599,10 +1596,10 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
   return (
     <div>
       <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 13, fontWeight: 650, color: theme.textPrimary, marginBottom: 12 }}>Quem tem acesso</div>
+        <div style={{ fontFamily: FONT_LOGO, fontSize: 22, fontWeight: 400, color: theme.textPrimary, marginBottom: 12 }}>Quem tem acesso</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {profiles.map(p => (
-            <div key={p.id} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: '11px 15px' }}>
+            <div key={p.id} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: '11px 15px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1611,7 +1608,7 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                       value={p.role}
                       onChange={e => onChangeRole(p.id, e.target.value)}
                       style={{
-                        fontSize: 11.5, fontWeight: 650, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
+                        fontSize: 11.5, fontWeight: 500, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
                         background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]],
                         border: 'none', outline: 'none',
                       }}
@@ -1620,7 +1617,7 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                       <option value="viewer">Visualização</option>
                     </select>
                   ) : (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 500, padding: '3px 10px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[p.role]] + '20', color: theme[ROLE_COLOR_KEY[p.role]] }}>
                       {ROLE_LABEL[p.role] || p.role}
                     </span>
                   )}
@@ -1674,17 +1671,17 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
 
       {isCreator ? (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 650, color: theme.textPrimary, marginBottom: 12 }}>Convidar alguém novo</div>
-          <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10, padding: 15, marginBottom: 18 }}>
+          <div style={{ fontFamily: FONT_LOGO, fontSize: 22, fontWeight: 400, color: theme.textPrimary, marginBottom: 12 }}>Convidar alguém novo</div>
+          <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 15, marginBottom: 18 }}>
             <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 12px', lineHeight: 1.5 }}>
               Gere um link e mande pra pessoa. Só quem tem esse link consegue criar uma conta nova no CRM.
             </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13 }}>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '9px 11px', color: theme.textPrimary, fontSize: 13 }}>
                 <option value="member">Acesso de edição (Membro)</option>
                 <option value="viewer">Só visualização</option>
               </select>
-              <button onClick={submitInvite} style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '9px 15px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={submitInvite} style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '9px 15px', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                 <Link2 size={14} /> Gerar link
               </button>
             </div>
@@ -1725,9 +1722,9 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
               <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 8 }}>Links permanentes</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {reusableInvites.map(inv => (
-                  <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.accent}50`, borderRadius: 9, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.accent}50`, borderRadius: 14, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 500, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
                         {ROLE_LABEL[inv.role]}
                       </span>
                       <span style={{ fontSize: 11, color: theme.textMuted }}>
@@ -1735,7 +1732,7 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                      <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
                         <Copy size={12} /> Copiar link
                       </button>
                       <ConfirmDeleteButton onConfirm={() => onDeleteInvite(inv.id)} size={13} />
@@ -1751,9 +1748,9 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
               <div style={{ fontSize: 11.5, color: theme.textMuted, marginBottom: 8 }}>Links ainda não usados</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {pendingInvites.map(inv => (
-                  <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div key={inv.id} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 14, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 500, padding: '3px 9px', borderRadius: 999, background: theme[ROLE_COLOR_KEY[inv.role]] + '20', color: theme[ROLE_COLOR_KEY[inv.role]] }}>
                         {ROLE_LABEL[inv.role]}
                       </span>
                       <span style={{ fontSize: 11, color: theme.textMuted }}>
@@ -1762,7 +1759,7 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                       <span style={{ fontSize: 11.5, color: theme.textMuted }}>{fmtDate(inv.created_at)}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                      <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
                         <Copy size={12} /> Copiar link
                       </button>
                       <ConfirmDeleteButton onConfirm={() => onDeleteInvite(inv.id)} size={13} />
@@ -1814,17 +1811,17 @@ function NewPasswordScreen({ onDone }) {
 
   const inputStyle = {
     width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`,
-    borderRadius: 10, padding: '11px 12px', color: theme.textPrimary, fontSize: 14, outline: 'none', marginBottom: 12,
+    borderRadius: 999, padding: '12px 16px', color: theme.textPrimary, fontSize: 14, outline: 'none', marginBottom: 12,
   };
   const primaryBtn = {
-    background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9,
-    padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+    background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999,
+    padding: '10px 16px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer',
   };
 
   return (
     <Centered>
       <div style={{ width: '100%', maxWidth: 300 }}>
-        <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary, textAlign: 'center' }}>Definir nova senha</h2>
+        <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 4px', color: theme.textPrimary, textAlign: 'center' }}>Definir nova senha</h2>
         {done ? (
           <>
             <p style={{ fontSize: 12.5, color: theme.textMuted, textAlign: 'center', margin: '10px 0 16px', lineHeight: 1.5 }}>
@@ -1852,12 +1849,12 @@ function NewPasswordScreen({ onDone }) {
 function StatCard({ icon, label, value, color }) {
   const { theme } = useTheme();
   return (
-    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 11, padding: '15px' }}>
+    <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: '15px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ color: color || theme.accent, display: 'flex' }}>{icon}</span>
-        <span style={{ fontSize: 12.5, fontWeight: 650, color: theme.textPrimary }}>{label}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary }}>{label}</span>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: theme.textPrimary, letterSpacing: -0.3 }}>{value}</div>
+      <div style={{ fontFamily: FONT_LOGO, fontSize: 32, fontWeight: 400, color: theme.textPrimary, letterSpacing: -0.3, lineHeight: 1.1 }}>{value}</div>
     </div>
   );
 }
@@ -1866,8 +1863,8 @@ function BreakdownCard({ title, data }) {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const max = Math.max(1, ...entries.map(e => e[1]));
   return (
-    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 11, padding: 17 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.textPrimary, marginBottom: 14 }}>{title}</div>
+    <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 17 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary, marginBottom: 14 }}>{title}</div>
       {entries.length === 0 ? (
         <div style={{ fontSize: 12, color: theme.textMuted }}>Sem dados ainda.</div>
       ) : (
@@ -1893,7 +1890,7 @@ function ConfirmDeleteButton({ onConfirm, size = 14 }) {
   if (confirming) {
     return (
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span onClick={() => { onConfirm(); setConfirming(false); }} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Excluir</span>
+        <span onClick={() => { onConfirm(); setConfirming(false); }} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 500 }}>Excluir</span>
         <span onClick={() => setConfirming(false)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Cancelar</span>
       </div>
     );
@@ -1911,7 +1908,7 @@ function ConfirmDeleteLink({ onConfirm }) {
   if (confirming) {
     return (
       <>
-        <span onClick={() => { onConfirm(); setConfirming(false); }} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Confirmar?</span>
+        <span onClick={() => { onConfirm(); setConfirming(false); }} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 500 }}>Confirmar?</span>
         <span onClick={() => setConfirming(false)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Não</span>
       </>
     );
@@ -1922,8 +1919,8 @@ function ConfirmDeleteLink({ onConfirm }) {
 function Modal({ children, onClose }) {
   const { theme } = useTheme();
   return (
-    <div style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
-      <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 15, padding: 24, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
+    <div className="fade-in" style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
+      <div className="modal-in" style={{ background: theme.cardBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 20, padding: 26, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
         <button onClick={onClose} style={{ float: 'right', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', marginTop: -4 }}><X size={17} /></button>
         {children}
       </div>
@@ -1938,7 +1935,7 @@ function WonFieldsModal({ fields, onSave, onClose }) {
   const [label, setLabel] = useState('');
   const [type, setType] = useState('text');
   const [options, setOptions] = useState('');
-  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 };
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 10, fontWeight: 500 };
 
   function addField() {
@@ -1961,7 +1958,7 @@ function WonFieldsModal({ fields, onSave, onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>Campos de ganho</h2>
+      <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 4px', color: theme.textPrimary }}>Campos de ganho</h2>
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>Escolha quais informações aparecem quando um lead desse funil vira "Ganho". O campo Valor da venda é sempre fixo.</p>
 
       {items.length === 0 ? (
@@ -1996,7 +1993,7 @@ function WonFieldsModal({ fields, onSave, onClose }) {
             <input value={options} onChange={e => setOptions(e.target.value)} placeholder="Ex: Anual, Mensal" style={inputPlain} />
           </>
         )}
-        <button onClick={addField} style={{ marginTop: 12, width: '100%', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={addField} style={{ marginTop: 12, width: '100%', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '10px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>
           Adicionar campo
         </button>
       </div>
@@ -2014,7 +2011,7 @@ function CardFieldsModal({ cardFields, funnelResponsibles, onDeleteResponsible, 
   const [type, setType] = useState('text');
   const [options, setOptions] = useState('');
 
-  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 };
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 10, fontWeight: 500 };
 
   function persist(nextPhone, nextEmail, nextItems) {
@@ -2054,7 +2051,7 @@ function CardFieldsModal({ cardFields, funnelResponsibles, onDeleteResponsible, 
 
   return (
     <Modal onClose={onClose}>
-      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>Campos do card</h2>
+      <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 4px', color: theme.textPrimary }}>Campos do card</h2>
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>Escolha quais campos aparecem no formulário de lead desse funil, e adicione campos próprios. Vale só pra esse funil.</p>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '9px 11px', marginBottom: 8 }}>
@@ -2074,7 +2071,7 @@ function CardFieldsModal({ cardFields, funnelResponsibles, onDeleteResponsible, 
         )}
       </div>
 
-      <div style={{ fontSize: 12.5, fontWeight: 650, color: theme.textPrimary, marginBottom: 8 }}>Campos extras</div>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary, marginBottom: 8 }}>Campos extras</div>
       {items.length === 0 ? (
         <div style={{ fontSize: 12.5, color: theme.textMuted, marginBottom: 16 }}>Nenhum campo extra ainda.</div>
       ) : (
@@ -2107,13 +2104,13 @@ function CardFieldsModal({ cardFields, funnelResponsibles, onDeleteResponsible, 
             <input value={options} onChange={e => setOptions(e.target.value)} placeholder="Ex: Anual, Mensal" style={inputPlain} />
           </>
         )}
-        <button onClick={addField} style={{ marginTop: 12, width: '100%', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={addField} style={{ marginTop: 12, width: '100%', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '10px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>
           Adicionar campo
         </button>
       </div>
 
       <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 14 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 650, color: theme.textPrimary, marginBottom: 8 }}>Responsáveis desse funil</div>
+        <div style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary, marginBottom: 8 }}>Responsáveis desse funil</div>
         {(!funnelResponsibles || funnelResponsibles.length === 0) ? (
           <div style={{ fontSize: 12.5, color: theme.textMuted }}>Nenhum responsável cadastrado ainda. Adicione um direto ao criar ou editar um lead.</div>
         ) : (
@@ -2141,7 +2138,7 @@ function RemoveResponsibleButton({ id, onRemove }) {
   if (confirming) {
     return (
       <span style={{ display: 'flex', gap: 4 }}>
-        <span onClick={() => onRemove(id)} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 700 }}>Sim</span>
+        <span onClick={() => onRemove(id)} style={{ fontSize: 11, color: theme.lost, cursor: 'pointer', fontWeight: 500 }}>Sim</span>
         <span onClick={() => setConfirming(false)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Não</span>
       </span>
     );
@@ -2157,7 +2154,7 @@ function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
   const { theme } = useTheme();
   const [addingNew, setAddingNew] = useState(false);
   const [newReason, setNewReason] = useState('');
-  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
   const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, fontWeight: 500 };
 
   function confirmNewReason() {
@@ -2171,12 +2168,12 @@ function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 16px', color: theme.textPrimary }}>Marcar como perdido</h2>
+      <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 16px', color: theme.textPrimary }}>Marcar como perdido</h2>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <label style={labelStyle}>Motivo</label>
         {!addingNew && (
-          <span onClick={() => setAddingNew(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+          <span onClick={() => setAddingNew(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
             + novo motivo
           </span>
         )}
@@ -2191,7 +2188,7 @@ function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
             placeholder="Nome do novo motivo"
             style={inputPlain}
           />
-          <button onClick={confirmNewReason} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+          <button onClick={confirmNewReason} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
         </div>
       ) : (
         <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inputPlain, marginBottom: 16 }}>
@@ -2201,8 +2198,8 @@ function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
       )}
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={onClose} style={{ flex: 1, background: theme.surfaceAlt, color: theme.textPrimary, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
-        <button onClick={() => onConfirm(reason)} style={{ flex: 1, background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 9, padding: '10px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Confirmar perda</button>
+        <button onClick={onClose} style={{ flex: 1, background: theme.surfaceAlt, color: theme.textPrimary, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '10px', fontSize: 13.5, cursor: 'pointer' }}>Cancelar</button>
+        <button onClick={() => onConfirm(reason)} style={{ flex: 1, background: theme.lostSoft, color: theme.lost, border: 'none', borderRadius: 999, padding: '10px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>Confirmar perda</button>
       </div>
     </Modal>
   );
@@ -2240,7 +2237,7 @@ function ReasonsModal({ title, hint, items, onAdd, onDelete, onEdit, onClose, pl
 
   return (
     <Modal onClose={onClose}>
-      <h2 style={{ fontSize: 15.5, fontWeight: 650, margin: '0 0 4px', color: theme.textPrimary }}>{title}</h2>
+      <h2 style={{ fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 4px', color: theme.textPrimary }}>{title}</h2>
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 16px' }}>{hint}</p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -2249,9 +2246,9 @@ function ReasonsModal({ title, hint, items, onAdd, onDelete, onEdit, onClose, pl
           onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
           placeholder={placeholder}
-          style={{ flex: 1, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 9, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 }}
+          style={{ flex: 1, boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '9px 11px', color: theme.textPrimary, fontSize: 13.5 }}
         />
-        <button onClick={submit} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 9, padding: '0 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={submit} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
           Adicionar
         </button>
       </div>
