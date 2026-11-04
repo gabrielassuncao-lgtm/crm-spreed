@@ -139,6 +139,10 @@ export function GlobalStyle() {
   input, textarea, select { transition: border-color .15s, box-shadow .15s; }
   input:focus, textarea:focus, select:focus { outline: none; border-color: ${t.borderStrong} !important; box-shadow: 0 0 0 3px ${t.accentSoft}; }
   select, select:focus, select:focus-visible { outline: none !important; }
+  select { -webkit-appearance: none; appearance: none; cursor: pointer; text-overflow: ellipsis;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='${t.mode === 'light' ? '%234a4c58' : '%23a8a8b0'}' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important; background-position: right 14px center !important; background-size: 12px 12px !important; padding-right: 36px !important; }
+  select[style*="transparent"] { background-position: right 2px center !important; padding-right: 20px !important; }
   input[style*="transparent"]:focus, select[style*="transparent"]:focus { box-shadow: none !important; border-color: transparent !important; background-color: transparent !important; }
   input::placeholder, textarea::placeholder { color: ${t.textMuted}; }
   button { transition: background-color .15s, border-color .15s, color .15s, opacity .15s, transform .15s; }
