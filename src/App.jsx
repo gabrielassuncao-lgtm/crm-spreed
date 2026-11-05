@@ -148,12 +148,22 @@ export default function App() {
   async function addStage(funnelId, name) {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const funnelStages = stages.filter(s => s.funnel_id === funnelId);
-    const nextPosition = funnelStages.length;
-    const color = STAGE_PALETTE[nextPosition % STAGE_PALETTE.length];
-    const { data, error } = await supabase.from('stages').insert({ funnel_id: funnelId, name: trimmed, color, position: nextPosition }).select().single();
-    if (error) { showToast('Erro ao criar etapa: ' + error.message, 'error'); return; }
-    setStages(ss => [...ss, data]);
+    const funnelStages = stages.filter(s => s.funnel_id === funnelId).sort((a, b) => a.position - b.position);
+    const color = STAGE_PALETTE[funnelStages.length % STAGE_PALETTE.length];
+    // A última etapa do funil é sempre o "Ganho". A etapa nova entra antes dela, para não tomar o lugar do Ganho.
+    const wonLast = funnelStages[funnelStages.length - 1];
+    const newPosition = wonLast ? wonLast.position : 0;
+    if (wonLast) {
+      const { error: moveErr } = await supabase.from('stages').update({ position: wonLast.position + 1 }).eq('id', wonLast.id);
+      if (moveErr) { showToast('Erro ao criar etapa: ' + moveErr.message, 'error'); return; }
+    }
+    const { data, error } = await supabase.from('stages').insert({ funnel_id: funnelId, name: trimmed, color, position: newPosition }).select().single();
+    if (error) {
+      if (wonLast) await supabase.from('stages').update({ position: wonLast.position }).eq('id', wonLast.id);
+      showToast('Erro ao criar etapa: ' + error.message, 'error');
+      return;
+    }
+    setStages(ss => [...ss.map(s => (wonLast && s.id === wonLast.id ? { ...s, position: wonLast.position + 1 } : s)), data]);
     showToast('Etapa criada.');
   }
 
@@ -287,7 +297,7 @@ export default function App() {
   }
 
   async function createInvite(role, funnelIds, reusable) {
-    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id, funnel_ids: funnelIds || [], reusable: !!reusable }).select().single();
+    const { data, error } = await supabase.from('invites').insert({ role, created_by: session.user.id, funnel_ids: funnelIds || [], reusable: !!reusable, expires_at: reusable ? null : new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() }).select().single();
     if (error) { showToast('Erro ao gerar convite: ' + error.message, 'error'); return; }
     setInvites(prev => [data, ...prev]);
     showToast('Link de convite criado.');
@@ -786,6 +796,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
     const stageName = funnel.stages.find(s => s.id === editingCard?.stage_id)?.name || null;
     logHistory(cardId, 'restored', { toStage: stageName });
     await reload();
+    setShowCardModal(false);
     showToast('Card restaurado ao pipeline.');
   }
   async function deleteCard(cardId) {
@@ -1716,7 +1727,7 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
           <div style={{ fontFamily: FONT_LOGO, fontSize: 22, fontWeight: 400, color: theme.textPrimary, marginBottom: 12 }}>Convidar alguém novo</div>
           <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 15, marginBottom: 18 }}>
             <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 12px', lineHeight: 1.5 }}>
-              Gere um link e mande pra pessoa. Só quem tem esse link consegue criar uma conta nova no CRM.
+              Gere um link e mande pra pessoa. Só quem tem esse link consegue criar uma conta nova no CRM. O link de uso único vale por 2 horas.
             </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
               <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '9px 11px', color: theme.textPrimary, fontSize: 13 }}>
@@ -1799,6 +1810,9 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
                         {(inv.funnel_ids || []).length === 0 ? 'sem funil' : funnels.filter(f => (inv.funnel_ids || []).includes(f.id)).map(f => f.name).join(', ')}
                       </span>
                       <span style={{ fontSize: 11.5, color: theme.textMuted }}>{fmtDate(inv.created_at)}</span>
+                      {inv.expires_at && (new Date(inv.expires_at) <= new Date()
+                        ? <span style={{ fontSize: 11, color: theme.lost, fontWeight: 500 }}>Expirado</span>
+                        : <span style={{ fontSize: 11, color: theme.textMuted }}>expira às {new Date(inv.expires_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>)}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <button onClick={() => copyLink(inv.token)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
@@ -2194,6 +2208,7 @@ function RemoveResponsibleButton({ id, onRemove }) {
 
 function LostReasonModal({ reasons, onAdd, onConfirm, onClose }) {
   const { theme } = useTheme();
+  const [reason, setReason] = useState('');
   const [addingNew, setAddingNew] = useState(false);
   const [newReason, setNewReason] = useState('');
   const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
