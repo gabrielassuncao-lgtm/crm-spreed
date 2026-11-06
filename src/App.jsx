@@ -1175,10 +1175,20 @@ function MultiSelectFilter({ icon, selected, onChange, options, placeholder, get
 
 function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onAddResponsible, cardFields, targetStageId, setTargetStageId, isWonStage, wonFields, onSave, onClose, onMarkLost, onRestore, onDelete }) {
   const { theme } = useTheme();
-  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 12, padding: '10px 11px', color: theme.textPrimary, fontSize: 14 };
-  const labelStyle = { fontSize: 11.5, color: theme.textSecondary, display: 'block', marginBottom: 5, marginTop: 12, fontWeight: 500 };
-  const modalTitle = { fontFamily: FONT_LOGO, fontSize: 25, fontWeight: 400, margin: '0 0 18px', color: theme.textPrimary };
-  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
+  const inputPlain = { width: '100%', boxSizing: 'border-box', background: theme.surfaceAlt, border: `1px solid ${theme.borderStrong}`, borderRadius: 12, padding: '11px 14px', color: theme.textPrimary, fontSize: 14 };
+  const labelStyle = { fontSize: 12.5, color: theme.textPrimary, display: 'block', marginBottom: 7, fontWeight: 600 };
+  const labelRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 };
+  const modalTitle = { fontFamily: FONT_LOGO, fontSize: 27, fontWeight: 400, margin: '0 0 20px', color: theme.textPrimary };
+  const primaryBtn = { background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '12px 22px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' };
+  const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px 20px' };
+  const full = { gridColumn: '1 / -1' };
+  // Título de seção: letras pequenas em maiúsculas, com uma linha fina ao lado.
+  const section = (title, color) => (
+    <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: color || theme.textSecondary }}>{title}</span>
+      <span style={{ flex: 1, height: 1, background: theme.border }} />
+    </div>
+  );
 
   const fields = cardFields || { phone: { enabled: true, label: 'Telefone' }, email: { enabled: true, label: 'E-mail' }, custom: [] };
 
@@ -1227,117 +1237,139 @@ function CardModal({ card, stages, origins, onAddOrigin, responsibleOptions, onA
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} width={720}>
       <h2 style={modalTitle}>{card ? 'Editar lead' : 'Novo lead'}</h2>
-      <label style={labelStyle}>Nome</label>
-      <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputPlain} />
-      {fields.phone?.enabled !== false && (
-        <>
-          <label style={labelStyle}>{fields.phone?.label || 'Telefone'}</label>
-          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputPlain} />
-        </>
-      )}
-      {fields.email?.enabled !== false && (
-        <>
-          <label style={labelStyle}>{fields.email?.label || 'E-mail'}</label>
-          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputPlain} />
-        </>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <label style={{ ...labelStyle, marginTop: 12 }}>Origem</label>
-        {!addingOrigin && (
-          <span onClick={() => setAddingOrigin(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
-            + nova origem
-          </span>
-        )}
-      </div>
-      {addingOrigin ? (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            autoFocus
-            value={newOrigin}
-            onChange={e => setNewOrigin(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && confirmNewOrigin()}
-            placeholder="Nome da nova origem"
-            style={inputPlain}
-          />
-          <button onClick={confirmNewOrigin} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+      <div style={grid}>
+        {section('Contato')}
+        <div style={full}>
+          <label style={labelStyle}>Nome</label>
+          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputPlain} />
         </div>
-      ) : (
-        <select value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} style={inputPlain}>
-          <option value="">Selecione</option>
-          {origins.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <label style={{ ...labelStyle, marginTop: 12 }}>Responsável</label>
-        {!addingResponsible && (
-          <span onClick={() => setAddingResponsible(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
-            + novo responsável
-          </span>
+        {fields.phone?.enabled !== false && (
+          <div>
+            <label style={labelStyle}>{fields.phone?.label || 'Telefone'}</label>
+            <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputPlain} />
+          </div>
         )}
-      </div>
-      {addingResponsible ? (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            autoFocus
-            value={newResponsible}
-            onChange={e => setNewResponsible(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && confirmNewResponsible()}
-            placeholder="Nome da pessoa"
-            style={inputPlain}
-          />
-          <button onClick={confirmNewResponsible} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 12px', fontSize: 13, cursor: 'pointer' }}>OK</button>
-        </div>
-      ) : (
-        <select value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} style={inputPlain}>
-          <option value="">Selecione</option>
-          {responsibleOptions.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-      )}
-      {(fields.custom || []).map(field => (
-        <React.Fragment key={field.id}>
-          <label style={labelStyle}>{field.label}</label>
-          {field.type === 'select' ? (
-            <select value={form.extraData[field.id] || ''} onChange={e => setExtraField(field.id, e.target.value)} style={inputPlain}>
-              <option value="">Selecione</option>
-              {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+        {fields.email?.enabled !== false && (
+          <div>
+            <label style={labelStyle}>{fields.email?.label || 'E-mail'}</label>
+            <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputPlain} />
+          </div>
+        )}
+
+        {section('Qualificação')}
+        <div>
+          <div style={labelRow}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>Origem</label>
+            {!addingOrigin && (
+              <span onClick={() => setAddingOrigin(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
+                + nova origem
+              </span>
+            )}
+          </div>
+          {addingOrigin ? (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                autoFocus
+                value={newOrigin}
+                onChange={e => setNewOrigin(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && confirmNewOrigin()}
+                placeholder="Nome da nova origem"
+                style={inputPlain}
+              />
+              <button onClick={confirmNewOrigin} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 14px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+            </div>
           ) : (
-            <input value={form.extraData[field.id] || ''} onChange={e => setExtraField(field.id, e.target.value)} style={inputPlain} />
+            <select value={form.origin} onChange={e => setForm({ ...form, origin: e.target.value })} style={inputPlain}>
+              <option value="">Selecione</option>
+              {origins.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
           )}
-        </React.Fragment>
-      ))}
-      <label style={labelStyle}>Observações</label>
-      <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre o lead ou a reunião" rows={3} style={{ ...inputPlain, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} />
-      <label style={labelStyle}>Etapa</label>
-      <select value={targetStageId} onChange={e => setTargetStageId(e.target.value)} style={inputPlain}>
-        {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-      </select>
-      {isWonStage && (
-        <>
-          <label style={labelStyle}>Valor da venda</label>
-          <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="0,00" style={inputPlain} />
+        </div>
 
-          {(wonFields || []).map(field => (
-            <React.Fragment key={field.id}>
-              <label style={labelStyle}>{field.label}</label>
-              {field.type === 'select' ? (
-                <select value={form.wonData[field.id] || ''} onChange={e => setWonField(field.id, e.target.value)} style={inputPlain}>
-                  <option value="">Selecione</option>
-                  {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input value={form.wonData[field.id] || ''} onChange={e => setWonField(field.id, e.target.value)} style={inputPlain} />
-              )}
-            </React.Fragment>
-          ))}
-        </>
-      )}
+        <div>
+          <div style={labelRow}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>Responsável</label>
+            {!addingResponsible && (
+              <span onClick={() => setAddingResponsible(true)} style={{ fontSize: 11, color: theme.accent, cursor: 'pointer', fontWeight: 500 }}>
+                + novo responsável
+              </span>
+            )}
+          </div>
+          {addingResponsible ? (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                autoFocus
+                value={newResponsible}
+                onChange={e => setNewResponsible(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && confirmNewResponsible()}
+                placeholder="Nome da pessoa"
+                style={inputPlain}
+              />
+              <button onClick={confirmNewResponsible} style={{ background: theme.accent, color: theme.accentText, border: 'none', borderRadius: 999, padding: '0 14px', fontSize: 13, cursor: 'pointer' }}>OK</button>
+            </div>
+          ) : (
+            <select value={form.responsible} onChange={e => setForm({ ...form, responsible: e.target.value })} style={inputPlain}>
+              <option value="">Selecione</option>
+              {responsibleOptions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+        </div>
+
+        {(fields.custom || []).map(field => (
+          <div key={field.id}>
+            <label style={labelStyle}>{field.label}</label>
+            {field.type === 'select' ? (
+              <select value={form.extraData[field.id] || ''} onChange={e => setExtraField(field.id, e.target.value)} style={inputPlain}>
+                <option value="">Selecione</option>
+                {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input value={form.extraData[field.id] || ''} onChange={e => setExtraField(field.id, e.target.value)} style={inputPlain} />
+            )}
+          </div>
+        ))}
+
+        {section('Anotações')}
+        <div style={full}>
+          <label style={labelStyle}>Observações</label>
+          <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre o lead ou a reunião" rows={3} style={{ ...inputPlain, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} />
+        </div>
+
+        {section('Funil')}
+        <div style={full}>
+          <label style={labelStyle}>Etapa</label>
+          <select value={targetStageId} onChange={e => setTargetStageId(e.target.value)} style={inputPlain}>
+            {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+
+        {isWonStage && (
+          <>
+            {section('Venda', theme.won)}
+            <div>
+              <label style={labelStyle}>Valor da venda</label>
+              <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="0,00" style={inputPlain} />
+            </div>
+            {(wonFields || []).map(field => (
+              <div key={field.id}>
+                <label style={labelStyle}>{field.label}</label>
+                {field.type === 'select' ? (
+                  <select value={form.wonData[field.id] || ''} onChange={e => setWonField(field.id, e.target.value)} style={inputPlain}>
+                    <option value="">Selecione</option>
+                    {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input value={form.wonData[field.id] || ''} onChange={e => setWonField(field.id, e.target.value)} style={inputPlain} />
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
       {card?.status === 'lost' && (
-        <div style={{ fontSize: 12, color: theme.lost, background: theme.lostSoft, borderRadius: 8, padding: '8px 11px', marginTop: 12 }}>
+        <div style={{ fontSize: 12.5, color: theme.lost, background: theme.lostSoft, borderRadius: 10, padding: '10px 13px', marginTop: 16 }}>
           Este lead está marcado como perdido{card.loss_reason ? `: ${card.loss_reason}` : '.'}
         </div>
       )}
@@ -1972,11 +2004,11 @@ function ConfirmDeleteLink({ onConfirm }) {
   return <span onClick={() => setConfirming(true)} style={{ fontSize: 11, color: theme.textMuted, cursor: 'pointer' }}>Excluir</span>;
 }
 
-function Modal({ children, onClose }) {
+function Modal({ children, onClose, width = 380 }) {
   const { theme } = useTheme();
   return (
     <div className="fade-in blur-overlay" style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={onClose}>
-      <div className="modal-in" style={{ background: theme.modalBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 20, padding: 26, width: '100%', maxWidth: 380, maxHeight: '85vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
+      <div className="modal-in" style={{ background: theme.modalBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 20, padding: 26, width: '100%', maxWidth: width, maxHeight: '88vh', overflowY: 'auto', boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
         <button onClick={onClose} style={{ float: 'right', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', marginTop: -4 }}><X size={17} /></button>
         {children}
       </div>
