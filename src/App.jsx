@@ -34,8 +34,29 @@ export default function App() {
   const [lossReasons, setLossReasons] = useState([]);
   const [responsibles, setResponsibles] = useState([]);
   const [funnelAccess, setFunnelAccess] = useState([]);
-  const [tab, setTab] = useState('funis');
-  const [activeFunnelId, setActiveFunnelId] = useState(null);
+  // Lembra a aba e o funil abertos, para a página não voltar para "Funis" ao recarregar.
+  const readSaved = (key, fallback) => {
+    try { return window.localStorage.getItem(key) || fallback; } catch { return fallback; }
+  };
+  const writeSaved = (key, value) => {
+    try {
+      if (value) window.localStorage.setItem(key, value);
+      else window.localStorage.removeItem(key);
+    } catch { /* sem armazenamento disponível: segue sem lembrar */ }
+  };
+  const [tab, setTabState] = useState(() => {
+    const saved = readSaved('crm:tab', 'funis');
+    return ['funis', 'leads', 'relatorios', 'config'].includes(saved) ? saved : 'funis';
+  });
+  const [activeFunnelId, setActiveFunnelIdState] = useState(() => readSaved('crm:funnel', null));
+  const setTab = (value) => { setTabState(value); writeSaved('crm:tab', value); };
+  const setActiveFunnelId = (value) => {
+    setActiveFunnelIdState(prev => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      writeSaved('crm:funnel', next);
+      return next;
+    });
+  };
   const [toast, setToast] = useState(null);
   const [showOriginsModal, setShowOriginsModal] = useState(false);
   const [showReasonsModal, setShowReasonsModal] = useState(false);
@@ -104,7 +125,8 @@ export default function App() {
     setFunnelAccess(fa || []);
     setProfiles(p || []);
     setInvites(inv || []);
-    setActiveFunnelId(prev => prev || (f && f[0]?.id) || null);
+    // Mantém o funil lembrado só se ele ainda existir; senão abre o primeiro.
+    setActiveFunnelId(prev => ((f || []).some(x => x.id === prev) ? prev : (f && f[0]?.id) || null));
     if (session) {
       const mine = (p || []).find(x => x.id === session.user.id);
       setProfile(mine || null);
