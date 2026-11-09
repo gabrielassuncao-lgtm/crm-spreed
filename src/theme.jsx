@@ -82,6 +82,9 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem('crm-theme', mode); } catch (e) {}
     document.documentElement.style.background = THEMES[mode].bg;
     document.documentElement.dataset.theme = mode;
+    // Cor da barra do sistema (iPhone/Android) acompanha o tema.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', THEMES[mode].bg);
   }, [mode]);
 
   const theme = THEMES[mode];
@@ -131,6 +134,8 @@ export function GlobalStyle() {
   const t = theme;
   const css = `
   html, body { background: ${t.bg}; }
+  /* Sem "elástico" ao puxar a página: evita mostrar uma faixa preta no topo/base no celular. */
+  html, body { overscroll-behavior-y: none; }
   body { margin: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: ${t.textPrimary}; }
   /* A camada passa 120px além do topo e da base: no celular (Safari/iPhone) as barras do navegador deixavam faixas sem o brilho de fundo. */
   body::before { content: ''; position: fixed; top: -120px; bottom: -120px; left: 0; right: 0; background: ${t.depth}; pointer-events: none; z-index: 0; transform: translateZ(0); }
@@ -168,7 +173,7 @@ export function GlobalStyle() {
   @media (max-width: 560px) { .stat-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
   /* ---- Celular (até 640px) ---- */
   @media (max-width: 640px) {
-    .topbar { display: grid !important; grid-template-columns: 1fr auto; grid-template-areas: "logo circles" "nav nav" "pills pills"; gap: 10px !important; padding: 14px 14px 4px !important; }
+    .topbar { display: grid !important; grid-template-columns: 1fr auto; grid-template-areas: "logo circles" "nav nav" "pills pills"; gap: 10px !important; padding: calc(14px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) 4px calc(14px + env(safe-area-inset-left, 0px)) !important; }
     .topbar-actions { display: contents !important; }
     .topbar-logo { grid-area: logo; min-width: 0 !important; }
     .topbar-circles { grid-area: circles; }
@@ -177,7 +182,7 @@ export function GlobalStyle() {
     .topbar-nav .nav-tab:not(.nav-tab-active) .nav-label { display: none; }
     .topbar-nav .nav-tab-active { flex: 2.4 1 0; }
     .topbar-pills { grid-area: pills; }
-    .page-pad { padding-left: 14px !important; padding-right: 14px !important; }
+    .page-pad { padding-left: calc(14px + env(safe-area-inset-left, 0px)) !important; padding-right: calc(14px + env(safe-area-inset-right, 0px)) !important; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important; }
     .funnel-tabs { flex-wrap: nowrap !important; overflow-x: auto; margin-bottom: 14px !important; padding-bottom: 4px; scrollbar-width: none; }
     .funnel-tabs::-webkit-scrollbar { display: none; }
     .funnel-tabs > * { flex-shrink: 0; white-space: nowrap; }
