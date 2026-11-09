@@ -132,7 +132,8 @@ export function GlobalStyle() {
   const css = `
   html, body { background: ${t.bg}; }
   body { margin: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: ${t.textPrimary}; }
-  body::before { content: ''; position: fixed; inset: 0; background: ${t.depth}; pointer-events: none; z-index: 0; transform: translateZ(0); }
+  /* A camada passa 120px além do topo e da base: no celular (Safari/iPhone) as barras do navegador deixavam faixas sem o brilho de fundo. */
+  body::before { content: ''; position: fixed; top: -120px; bottom: -120px; left: 0; right: 0; background: ${t.depth}; pointer-events: none; z-index: 0; transform: translateZ(0); }
   #root { position: relative; z-index: 1; }
   * { box-sizing: border-box; }
   input, select, textarea, button { font-family: inherit; font-weight: 300; }
