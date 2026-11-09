@@ -80,7 +80,8 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     try { localStorage.setItem('crm-theme', mode); } catch (e) {}
-    document.documentElement.style.background = THEMES[mode].bg;
+    // Só a cor (não o atalho "background"), para não apagar o degradê definido no CSS.
+    document.documentElement.style.backgroundColor = THEMES[mode].bg;
     document.documentElement.dataset.theme = mode;
     // Cor da barra do sistema (iPhone/Android) acompanha o tema.
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -132,6 +133,8 @@ export function useValuesVisibility() {
 export function GlobalStyle() {
   const { theme } = useTheme();
   const t = theme;
+  // As 4 "luzes" do fundo: as 2 primeiras ficam no topo, as 2 últimas na base.
+  const glows = t.depth.split(/,(?=radial-gradient)/);
   const css = `
   html, body { background: ${t.bg}; }
   /* Sem "elástico" ao puxar a página: evita mostrar uma faixa preta no topo/base no celular. */
@@ -171,6 +174,24 @@ export function GlobalStyle() {
   .fade-in { animation: fadeIn .2s ease-out; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @media (max-width: 560px) { .stat-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+  /* ---- Fundo no celular/tablet ----
+     No iPhone, uma camada "fixed" não chega até as bordas da tela (atrás das barras do Safari).
+     Aqui o degradê é pintado na própria página (html), que o iPhone sempre estende até a borda. */
+  @media (max-width: 900px), (pointer: coarse) {
+    body::before { display: none; }
+    body { background: transparent; }
+    html {
+      min-height: 100vh;
+      min-height: 100lvh;
+      background-color: ${t.bg};
+      background-image: ${glows.join(', ')};
+      background-repeat: no-repeat;
+      background-size: 100% 100vh, 100% 100vh, 100% 100vh, 100% 100vh;
+      background-size: 100% 100lvh, 100% 100lvh, 100% 100lvh, 100% 100lvh;
+      background-position: 0 0, 0 0, 0 100%, 0 100%;
+    }
+  }
+
   /* ---- Celular (até 640px) ---- */
   @media (max-width: 640px) {
     .topbar { display: grid !important; grid-template-columns: 1fr auto; grid-template-areas: "logo circles" "nav nav" "pills pills"; gap: 10px !important; padding: calc(14px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) 4px calc(14px + env(safe-area-inset-left, 0px)) !important; }
