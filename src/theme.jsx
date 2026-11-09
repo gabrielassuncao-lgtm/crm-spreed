@@ -135,6 +135,12 @@ export function GlobalStyle() {
   const t = theme;
   // As 4 "luzes" do fundo: as 2 primeiras ficam no topo, as 2 últimas na base.
   const glows = t.depth.split(/,(?=radial-gradient)/);
+  // Versão para celular: as luzes ficam mais para dentro e somem antes das bordas do bloco,
+  // assim o degradê repete sem emenda e continua igual na área do "elástico" do iPhone.
+  const mobileGlows = glows.map(g => g.replace(
+    /radial-gradient\(\s*\d+%\s+\d+%\s+at\s+(\d+)%\s+(\d+)%/,
+    (_, x, y) => `radial-gradient(70% 34% at ${x}% ${Number(y) < 50 ? 22 : 78}%`
+  ));
   const css = `
   html, body { background: ${t.bg}; }
   /* Sem "elástico" ao puxar a página: evita mostrar uma faixa preta no topo/base no celular. */
@@ -184,11 +190,11 @@ export function GlobalStyle() {
       min-height: 100vh;
       min-height: 100lvh;
       background-color: ${t.bg};
-      background-image: ${glows.join(', ')};
-      background-repeat: no-repeat;
-      background-size: 100% 100vh, 100% 100vh, 100% 100vh, 100% 100vh;
-      background-size: 100% 100lvh, 100% 100lvh, 100% 100lvh, 100% 100lvh;
-      background-position: 0 0, 0 0, 0 100%, 0 100%;
+      background-image: ${mobileGlows.join(', ')};
+      background-repeat: repeat-y;
+      background-size: 100% 100vh;
+      background-size: 100% 100lvh;
+      background-position: 0 0;
     }
   }
 
