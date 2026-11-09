@@ -130,6 +130,21 @@ export function useValuesVisibility() {
   return ctx;
 }
 
+// Mistura o fundo com a cor das "luzes" do degradê (usado para tingir as barras do iPhone).
+function tintFromGlows(bgHex, glowStrings, strength = 0.6) {
+  const bg = [1, 3, 5].map(i => parseInt(bgHex.slice(i, i + 2), 16));
+  const found = glowStrings
+    .map(g => g.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/))
+    .filter(Boolean)
+    .map(m => ({ rgb: [+m[1], +m[2], +m[3]], a: +m[4] }));
+  if (!found.length) return bgHex;
+  const out = bg.map((c, k) => {
+    const delta = found.reduce((acc, f) => acc + f.a * strength * (f.rgb[k] - c), 0) / found.length;
+    return Math.round(c + delta);
+  });
+  return `rgb(${out[0]}, ${out[1]}, ${out[2]})`;
+}
+
 export function GlobalStyle() {
   const { theme } = useTheme();
   const t = theme;
@@ -137,6 +152,8 @@ export function GlobalStyle() {
   const glows = t.depth.split(/,(?=radial-gradient)/);
   // Versão para celular: as luzes ficam mais para dentro e somem antes das bordas do bloco,
   // assim o degradê repete sem emenda e continua igual na área do "elástico" do iPhone.
+  const topTint = tintFromGlows(t.bg, glows.slice(0, 2));
+  const bottomTint = tintFromGlows(t.bg, glows.slice(2));
   const mobileGlows = glows.map(g => g.replace(
     /radial-gradient\(\s*\d+%\s+\d+%\s+at\s+(\d+)%\s+(\d+)%/,
     (_, x, y) => `radial-gradient(70% 34% at ${x}% ${Number(y) < 50 ? 22 : 78}%`
@@ -184,8 +201,21 @@ export function GlobalStyle() {
      No iPhone, uma camada "fixed" não chega até as bordas da tela (atrás das barras do Safari).
      Aqui o degradê é pintado na própria página (html), que o iPhone sempre estende até a borda. */
   @media (max-width: 900px), (pointer: coarse) {
-    body::before { display: none; }
     body { background: transparent; }
+    /* iOS 26: o Safari pinta as barras (Dynamic Island e barra de baixo) com a cor de elementos "fixed"
+       encostados nas bordas. Estas duas faixas dão a cor certa para as barras acompanharem o fundo. */
+    body::before {
+      content: ''; display: block; position: fixed; left: 0; right: 0; top: 0; bottom: auto;
+      height: calc(env(safe-area-inset-top, 0px) + 28px);
+      background: ${topTint}; transform: none; z-index: 0; pointer-events: none;
+      -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent);
+    }
+    body::after {
+      content: ''; display: block; position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+      height: calc(env(safe-area-inset-bottom, 0px) + 28px);
+      background: ${bottomTint}; z-index: 0; pointer-events: none;
+      -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%);
+    }
     html {
       min-height: 100vh;
       min-height: 100lvh;
