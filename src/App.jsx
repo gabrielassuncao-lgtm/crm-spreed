@@ -417,7 +417,7 @@ export default function App() {
     <Shell>
       <TopBar email={session.user.email} onLogout={() => supabase.auth.signOut()} tab={tab} setTab={setTab} mode={mode} toggle={toggle} onManageOrigins={() => setShowOriginsModal(true)} onManageReasons={() => setShowReasonsModal(true)} isViewer={isViewer} canViewReports={canViewReports} />
       {toast && <Toast toast={toast} />}
-      <div style={{ padding: tab === 'funis' ? '14px 26px 16px' : '14px 26px 40px' }}>
+      <div className="page-pad" style={{ padding: tab === 'funis' ? '14px 26px 16px' : '14px 26px 40px' }}>
         {tab === 'funis' && (
           <FunisTab
             funnels={funnelsWithStages}
@@ -531,37 +531,38 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
   };
   const initial = (email || '?').trim().charAt(0).toUpperCase();
   return (
-    <div style={{ padding: '18px 26px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 150 }}>
+    <div className="topbar" style={{ padding: '18px 26px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+      <div className="topbar-logo" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 150 }}>
         <img src={LOGO_URL} alt="DOXA" width={Math.round(24 * LOGO_RATIO)} height={24}
           style={{ display: 'block', filter: mode === 'light' ? 'invert(1)' : 'none' }} />
         <span style={{ width: 1, height: 20, background: theme.borderStrong }} />
         <span className="serif" style={{ fontSize: 22, fontStyle: 'italic', color: theme.textPrimary, lineHeight: 1 }}>CRM</span>
       </div>
 
-      <div className="glass" style={{ display: 'flex', gap: 2, background: theme.columnBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 999, padding: 4, boxShadow: theme.shadowSm }}>
+      <div className="glass topbar-nav" style={{ display: 'flex', gap: 2, background: theme.columnBg, border: `1px solid ${theme.borderStrong}`, borderRadius: 999, padding: 4, boxShadow: theme.shadowSm }}>
         {tabs.map(t => {
           const active = tab === t.id;
           return (
-            <button key={t.id} className="nav-tab" onClick={() => setTab(t.id)} style={{
+            <button key={t.id} className={active ? 'nav-tab nav-tab-active' : 'nav-tab'} title={t.label} aria-label={t.label} onClick={() => setTab(t.id)} style={{
               display: 'flex', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer', borderRadius: 999,
               padding: '7px 15px', fontSize: 12.5, fontWeight: active ? 500 : 400,
               background: active ? theme.surfaceHover : 'transparent', color: active ? theme.textPrimary : theme.textMuted,
               boxShadow: active ? `0 0 0 1px ${theme.border}` : 'none',
             }}>
-              <t.icon size={13} /> {t.label}
+              <t.icon size={13} /> <span className="nav-label">{t.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {!isViewer && (
-          <>
+          <div className="topbar-pills" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button className="pill-btn" onClick={onManageOrigins} title="Gerenciar origens" style={pill}><Settings2 size={13} /> Origens</button>
             <button className="pill-btn" onClick={onManageReasons} title="Gerenciar motivos de perda" style={pill}><Settings2 size={13} /> Motivos</button>
-          </>
+          </div>
         )}
+        <div className="topbar-circles" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button className="pill-btn" onClick={toggleHidden} title={hidden ? 'Mostrar valores' : 'Ocultar valores'} style={circle(hidden)}>
           {hidden ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
@@ -573,6 +574,7 @@ function TopBar({ email, onLogout, tab, setTab, mode, toggle, onManageOrigins, o
           alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, flexShrink: 0,
         }}>{initial}</div>
         <button className="pill-btn" onClick={onLogout} title="Sair" style={circle(false)}><LogOut size={13} /></button>
+        </div>
       </div>
     </div>
   );
@@ -620,7 +622,7 @@ function FunisTab({ funnels, cards, origins, currentUserEmail, onAddOrigin, reas
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+      <div className="funnel-tabs" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
         {funnels.map(f => (
           <button key={f.id} onClick={() => setActiveFunnelId(f.id)} style={{
             background: f.id === activeFunnelId ? theme.accent : theme.surfaceAlt,
@@ -846,21 +848,21 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+      <div className="funnel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         {isViewer ? (
           <span style={{ fontSize: 12, color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={13} /> Modo somente visualização
           </span>
         ) : (
-          <button onClick={() => openNewCard(funnel.stages[0]?.id)} style={{
-            ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5,
+          <button className="btn-new-lead" onClick={() => openNewCard(funnel.stages[0]?.id)} style={{
+            ...primaryBtn, display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, whiteSpace: 'nowrap', flexShrink: 0,
           }}>
             <Plus size={14} /> Novo lead
           </button>
         )}
         {!isViewer && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div className="funnel-tools" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <div className="funnel-tools-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button onClick={() => setShowFieldsModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5 }}>
               <Settings2 size={13} /> Campos de ganho
             </button>
@@ -871,7 +873,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
               <Trash2 size={14} />
             </button>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <div className="funnel-addstage" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
             {showAddStage ? (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input
@@ -906,7 +908,7 @@ function FunnelBoard({ funnel, allCards, origins, currentUserEmail, onAddOrigin,
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px', maxWidth: 260, flex: '1 1 180px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.surfaceAlt, border: `1px solid ${theme.border}`, borderRadius: 999, padding: '7px 14px', maxWidth: 260, flex: '1 1 180px' }} className="filter-search">
           <Filter size={12} color={theme.textMuted} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar lead" style={{ background: 'transparent', border: 'none', outline: 'none', color: theme.textPrimary, fontSize: 12.5, width: '100%' }} />
         </div>
@@ -1545,7 +1547,7 @@ function LeadsTab({ funnels, cards, origins }) {
         <div style={{ textAlign: 'center', padding: '56px 16px', color: theme.textMuted, fontSize: 13.5 }}>Nenhum lead encontrado.</div>
       ) : (
         <div style={{ border: `1px solid ${theme.border}`, borderRadius: 11, overflow: 'hidden', overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 900 }}>
+          <div className="leads-head" style={{ display: 'grid', gridTemplateColumns: cols, background: theme.surfaceAlt, borderBottom: `1px solid ${theme.border}`, minWidth: 900 }}>
             <div style={th}>Funil</div>
             <div style={th}>Etapa</div>
             <div style={th}>Nome</div>
@@ -1559,22 +1561,22 @@ function LeadsTab({ funnels, cards, origins }) {
             const stage = stageOf(c);
             const funnelName = funnels.find(f => f.id === c.funnel_id)?.name || '—';
             return (
-              <div key={c.id} style={{
+              <div key={c.id} className="leads-row" style={{
                 display: 'grid', gridTemplateColumns: cols, background: i % 2 === 0 ? theme.surface : theme.surfaceAlt + '80',
                 borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${theme.border}`, minWidth: 900,
               }}>
-                <div style={{ ...td, color: theme.textSecondary }}>{funnelName}</div>
-                <div style={{ ...td }}>
+                <div data-label="Funil" style={{ ...td, color: theme.textSecondary }}>{funnelName}</div>
+                <div data-label="Etapa" style={{ ...td }}>
                   <span style={{ fontSize: 10, fontWeight: 500, padding: '3px 9px', borderRadius: 999, background: hexA(stage.color, theme.mode === 'light' ? 0.28 : 0.16), border: `1px solid ${hexA(stage.color, theme.mode === 'light' ? 0.55 : 0.30)}`, color: theme.mode === 'light' ? theme.textPrimary : stage.color, whiteSpace: 'nowrap' }}>
                     {stage.name}
                   </span>
                 </div>
-                <div style={{ ...td, fontWeight: 500, color: theme.textPrimary }}>{c.name}</div>
-                <div style={td}>{c.phone || '—'}</div>
-                <div style={td}>{c.email || '—'}</div>
-                <div style={td}>{c.origin || '—'}</div>
-                <div style={td}>{c.responsible || '—'}</div>
-                <div style={{ ...td, color: c.status === 'lost' ? theme.lost : theme.textMuted }}>{c.status === 'lost' ? (c.loss_reason || 'Não especificado') : '—'}</div>
+                <div data-label="Nome" style={{ ...td, fontWeight: 500, color: theme.textPrimary }}>{c.name}</div>
+                <div data-label="Telefone" style={td}>{c.phone || '—'}</div>
+                <div data-label="E-mail" style={td}>{c.email || '—'}</div>
+                <div data-label="Origem" style={td}>{c.origin || '—'}</div>
+                <div data-label="Responsável" style={td}>{c.responsible || '—'}</div>
+                <div data-label="Motivo de perda" className={c.status === 'lost' ? '' : 'leads-no-loss'} style={{ ...td, color: c.status === 'lost' ? theme.lost : theme.textMuted }}>{c.status === 'lost' ? (c.loss_reason || 'Não especificado') : '—'}</div>
               </div>
             );
           })}
@@ -1707,8 +1709,8 @@ function SettingsTab({ profiles, invites, isCreator, currentUserId, funnels, fun
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {profiles.map(p => (
             <div key={p.id} style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: '11px 15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 13, color: theme.textPrimary }}>{p.email}</span>
+              <div className="member-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, color: theme.textPrimary, minWidth: 0, overflowWrap: 'anywhere' }}>{p.email}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {isCreator && p.role !== 'creator' ? (
                     <select

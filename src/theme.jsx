@@ -165,6 +165,40 @@ export function GlobalStyle() {
   .fade-in { animation: fadeIn .2s ease-out; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @media (max-width: 560px) { .stat-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+  /* ---- Celular (até 640px) ---- */
+  @media (max-width: 640px) {
+    .topbar { display: grid !important; grid-template-columns: 1fr auto; grid-template-areas: "logo circles" "nav nav" "pills pills"; gap: 10px !important; padding: 14px 14px 4px !important; }
+    .topbar-actions { display: contents !important; }
+    .topbar-logo { grid-area: logo; min-width: 0 !important; }
+    .topbar-circles { grid-area: circles; }
+    .topbar-nav { grid-area: nav; width: 100%; }
+    .topbar-nav .nav-tab { flex: 1 1 0; justify-content: center; padding: 8px 6px !important; }
+    .topbar-nav .nav-tab:not(.nav-tab-active) .nav-label { display: none; }
+    .topbar-nav .nav-tab-active { flex: 2.4 1 0; }
+    .topbar-pills { grid-area: pills; }
+    .page-pad { padding-left: 14px !important; padding-right: 14px !important; }
+    .funnel-tabs { flex-wrap: nowrap !important; overflow-x: auto; margin-bottom: 14px !important; padding-bottom: 4px; scrollbar-width: none; }
+    .funnel-tabs::-webkit-scrollbar { display: none; }
+    .funnel-tabs > * { flex-shrink: 0; white-space: nowrap; }
+    .funnel-head { flex-direction: column; align-items: stretch !important; gap: 10px; }
+    .funnel-head .btn-new-lead { width: 100%; justify-content: center; padding: 11px 20px !important; }
+    .funnel-tools { align-items: flex-start !important; }
+    .funnel-tools-row { justify-content: flex-start !important; flex-wrap: nowrap !important; gap: 5px !important; }
+    .funnel-tools-row button { padding: 8px 9px !important; font-size: 11.5px !important; white-space: nowrap; gap: 4px !important; }
+    .funnel-addstage { justify-content: flex-start !important; margin-top: 4px !important; }
+    .filter-search { max-width: none !important; flex: 1 1 100% !important; }
+    .member-head { flex-wrap: wrap; }
+    /* Leads: a tabela vira uma lista de cartões */
+    .leads-head { display: none !important; }
+    .leads-row { display: grid !important; grid-template-columns: 1fr 1fr !important; min-width: 0 !important; padding: 10px 2px; row-gap: 4px; }
+    .leads-row > div { min-width: 0; padding: 3px 12px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; }
+    .leads-row > div::before { content: attr(data-label); display: block; font-size: 9.5px; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.55; margin-bottom: 1px; }
+    .leads-row > [data-label="Nome"] { grid-column: 1 / -1; order: -2; font-size: 14px !important; }
+    .leads-row > [data-label="Etapa"] { grid-column: 1 / -1; order: -1; }
+    .leads-row > [data-label="Nome"]::before, .leads-row > [data-label="Etapa"]::before { display: none; }
+    .leads-row > [data-label="Motivo de perda"] { grid-column: 1 / -1; }
+    .leads-row > .leads-no-loss { display: none !important; }
+  }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   `;
   return <style>{css}</style>;
