@@ -84,8 +84,13 @@ export function ThemeProvider({ children }) {
     document.documentElement.style.backgroundColor = THEMES[mode].bg;
     document.documentElement.dataset.theme = mode;
     // Cor da barra do sistema (iPhone/Android) acompanha o tema.
+    // O Safari pinta a área do relógio/Dynamic Island e a barra de baixo com esta cor.
+    // Em vez do preto do fundo, usa a média das "luzes" do degradê, para combinar com a página.
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', THEMES[mode].bg);
+    if (meta) {
+      const lights = THEMES[mode].depth.split(/,(?=radial-gradient)/);
+      meta.setAttribute('content', tintFromGlows(THEMES[mode].bg, lights));
+    }
   }, [mode]);
 
   const theme = THEMES[mode];
