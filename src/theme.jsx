@@ -164,6 +164,7 @@ export function GlobalStyle() {
   @keyframes modalIn { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
   .fade-in { animation: fadeIn .2s ease-out; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @media (max-width: 560px) { .stat-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   `;
   return <style>{css}</style>;

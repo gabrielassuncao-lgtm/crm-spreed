@@ -1623,10 +1623,10 @@ function RelatoriosTab({ funnels, cards: allCards, origins }) {
         <SelectFilter icon={<UserCircle2 size={12} />} value={filterResponsible} onChange={setFilterResponsible} options={responsibleNames} placeholder="Todos os responsáveis" />
         <MultiSelectFilter icon={<Tag size={12} color={theme.textMuted} />} selected={filterOrigins} onChange={setFilterOrigins} options={origins} getKey={o => o} getLabel={o => o} placeholder="Todas as origens" />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 26 }}>
+      <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginBottom: 26 }}>
         <StatCard icon={<Users size={15} />} label="Total de leads" value={total} />
-        <StatCard icon={<TrendingUp size={15} />} label="Conversão total" value={conversionTotal + '%'} />
-        <StatCard icon={<TrendingUp size={15} />} label="Conversão (reunião realizada)" value={conversionMeeting != null ? conversionMeeting + '%' : '—'} />
+        <StatCard icon={<TrendingUp size={15} />} label="Conversão" sublabel="total" value={conversionTotal + '%'} />
+        <StatCard icon={<TrendingUp size={15} />} label="Conversão" sublabel="reunião realizada" value={conversionMeeting != null ? conversionMeeting + '%' : '—'} />
         <StatCard icon={<DollarSign size={15} />} label="Valor ganho" value={valuesHidden ? '••••••' : fmtMoney(totalValue)} color={theme.won} />
         <StatCard icon={<X size={15} />} label="Perdidos" value={lost.length} color={theme.lost} />
       </div>
@@ -1934,15 +1934,21 @@ function NewPasswordScreen({ onDone }) {
   );
 }
 
-function StatCard({ icon, label, value, color }) {
+function StatCard({ icon, label, sublabel, value, color }) {
   const { theme } = useTheme();
+  // Valores compridos (ex: "R$ 1.250.000,00") usam fonte menor para caber no card.
+  const len = String(value).length;
+  const valueSize = len > 13 ? 18 : len > 10 ? 21 : 26;
   return (
-    <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: '15px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ color: color || theme.accent, display: 'flex' }}>{icon}</span>
-        <span style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary }}>{label}</span>
+    <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: '15px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <span style={{ color: color || theme.accent, display: 'flex', flexShrink: 0, marginTop: 2 }}>{icon}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: theme.textPrimary, lineHeight: 1.3 }}>{label}</div>
+          {sublabel && <div style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.3, marginTop: 1 }}>{sublabel}</div>}
+        </div>
       </div>
-      <div style={{ fontSize: 26, fontWeight: 400, color: theme.textPrimary, letterSpacing: -0.4, lineHeight: 1.15 }}>{value}</div>
+      <div style={{ marginTop: 'auto', fontSize: valueSize, fontWeight: 400, color: theme.textPrimary, letterSpacing: -0.4, lineHeight: 1.15, overflowWrap: 'anywhere' }}>{value}</div>
     </div>
   );
 }
